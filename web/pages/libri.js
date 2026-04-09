@@ -6,40 +6,41 @@ import { supabase } from '../lib/supabase'
 
 // ─── Barcode Scanner overlay ───────────────────────────────────────────────────
 function BarcodeScanner({ onDetected, onClose }) {
-  const videoRef  = useRef(null)
-  const readerRef = useRef(null)
+  const videoRef    = useRef(null)
+  const controlsRef = useRef(null)   // IScannerControls da @zxing/browser
+  const doneRef     = useRef(false)  // evita chiamate multiple a onDetected
   const [err, setErr] = useState(null)
 
   useEffect(() => {
-    let active = true
+    if (!videoRef.current) return
 
     async function start() {
       try {
         const { BrowserMultiFormatReader } = await import('@zxing/browser')
-        const reader = new BrowserMultiFormatReader()
-        readerRef.current = reader
-        await reader.decodeFromConstraints(
-          { video: { facingMode: 'environment' } },
+        const reader   = new BrowserMultiFormatReader()
+        const controls = await reader.decodeFromConstraints(
+          { video: { facingMode: 'environment' }, audio: false },
           videoRef.current,
-          (result, error) => {
-            if (result && active) {
-              active = false
+          (result, err) => {
+            if (result && !doneRef.current) {
+              doneRef.current = true
               onDetected(result.getText())
             }
           }
         )
+        controlsRef.current = controls
       } catch (e) {
-        setErr('Impossibile accedere alla fotocamera: ' + e.message)
+        setErr('Fotocamera non disponibile: ' + (e?.message ?? e))
       }
     }
 
     start()
 
     return () => {
-      active = false
-      readerRef.current?.reset()
+      doneRef.current = true
+      try { controlsRef.current?.stop() } catch (_) {}
     }
-  }, [onDetected])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="fixed inset-0 z-[60] bg-black flex flex-col">
