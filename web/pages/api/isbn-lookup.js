@@ -98,8 +98,17 @@ export default async function handler(req, res) {
           autori = resolved.filter(Boolean)
         }
 
-        // Copertina Open Library
-        const copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
+        // Copertina Open Library — verifica che esista davvero (?default=false → 404 se assente)
+        let copertina = null
+        try {
+          const coverRes = await fetch(
+            `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg?default=false`,
+            { method: 'HEAD', signal: AbortSignal.timeout(3000) }
+          )
+          if (coverRes.ok) {
+            copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
+          }
+        } catch (_) {}
 
         // Anno pubblicazione
         let anno = null

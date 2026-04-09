@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Usa service_role key per bypassare RLS sul bucket storage
+// (SUPABASE_SERVICE_ROLE_KEY è server-side only, mai esposta al client)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } }
