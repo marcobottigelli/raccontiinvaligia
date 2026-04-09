@@ -499,6 +499,14 @@ export default function Libri() {
     if (router.query.filter) setFilter(router.query.filter)
   }, [router.query.filter])
 
+  // FAB dal bottom nav mobile: /libri?add=1 apre il modal
+  useEffect(() => {
+    if (router.query.add === '1') {
+      setShowModal(true)
+      router.replace('/libri', undefined, { shallow: true })
+    }
+  }, [router.query.add])
+
   const fetchLibri = useCallback(async () => {
     setLoading(true)
     try {

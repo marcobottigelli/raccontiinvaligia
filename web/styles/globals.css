@@ -17,8 +17,13 @@ html {
 
 body {
   font-family: 'Montserrat', sans-serif;
-  background-color: var(--color-surface);
+  background-color: #f3f4f6;
   color: var(--color-text);
+}
+
+/* Evita che il content finisca sotto la safe area su iPhone */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 h1, h2, h3, h4 {
