@@ -20,24 +20,16 @@ export default function Layout({ children }) {
           <div className="flex items-center justify-between h-14">
 
             {/* Logo + nome */}
-            <Link href="/" className="flex items-center gap-2.5 min-w-0">
-              <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-brand-500/30">
+            <Link href="/" className="flex items-center flex-shrink-0">
+              <div className="relative h-10 w-28 sm:h-11 sm:w-32">
                 <Image
                   src="/logo.jpg"
                   alt="RaccontiInValigia"
                   fill
-                  sizes="36px"
-                  className="object-cover"
+                  sizes="128px"
+                  className="object-contain object-left"
                   priority
                 />
-              </div>
-              <div className="min-w-0">
-                <p className="font-bold text-gray-900 leading-tight text-sm sm:text-base truncate"
-                   style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  <span className="hidden xs:inline">RaccontiInValigia</span>
-                  <span className="xs:hidden">RiV</span>
-                </p>
-                <p className="text-xs text-gray-400 leading-tight hidden sm:block">La libreria di Cristina</p>
               </div>
             </Link>
 
