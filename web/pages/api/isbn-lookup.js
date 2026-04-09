@@ -36,10 +36,10 @@ export default async function handler(req, res) {
             || v.imageLinks.medium
             || v.imageLinks.thumbnail
             || null
-          // Migliora la qualità: zoom=1 → zoom=0, forza HTTPS
+          // zoom=0 su Google Books restituisce placeholder per libri senza preview digitale
+          // (comune per edizioni italiane). zoom=1 è la thumbnail reale che funziona per tutti.
           if (copertina) {
             copertina = copertina
-              .replace('zoom=1', 'zoom=0')
               .replace('&edge=curl', '')
               .replace(/^http:\/\//, 'https://')
           }

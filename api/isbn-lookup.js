@@ -30,15 +30,17 @@ export default async function handler(req, res) {
         const v = data.items[0].volumeInfo
 
         // Copertina: prendi la più grande disponibile
+        // NOTA: zoom=0 su Google Books restituisce placeholder per libri senza preview digitale
+        // (es. edizioni italiane). zoom=1 è la thumbnail reale che funziona per tutti i libri.
         let copertina = null
         if (v.imageLinks) {
           copertina = v.imageLinks.large
             || v.imageLinks.medium
             || v.imageLinks.thumbnail
             || null
-          // Migliora la qualità: zoom=1 → zoom=0
           if (copertina) {
-            copertina = copertina.replace('zoom=1', 'zoom=0').replace('&edge=curl', '')
+            // Rimuovi l'effetto pagina arricciata, forza HTTPS
+            copertina = copertina.replace('&edge=curl', '').replace('http:', 'https:')
           }
         }
 
