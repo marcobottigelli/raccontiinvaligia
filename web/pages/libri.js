@@ -119,10 +119,28 @@ function FonteBadge({ source }) {
 
 // ─── Cover picker sheet ────────────────────────────────────────────────────────
 function CoverPickerSheet({ onFile, onUrl, onClose }) {
-  const cameraRef  = useRef(null)
-  const galleryRef = useRef(null)
+  const cameraRef   = useRef(null)
+  const galleryRef  = useRef(null)
   const [urlMode, setUrlMode] = useState(false)
   const [urlVal,  setUrlVal]  = useState('')
+  const waitingRef  = useRef(false)
+
+  // iOS fix: when user returns from native camera/gallery without selecting,
+  // onChange never fires. Close the sheet on next page visibility restore.
+  function openPicker(ref) {
+    waitingRef.current = true
+    ref.current.click()
+    const handleVisible = () => {
+      if (waitingRef.current) {
+        // Small delay to let onChange fire first if a file was selected
+        setTimeout(() => { if (waitingRef.current) onClose() }, 400)
+      }
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('focus', handleVisible)
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('focus', handleVisible)
+  }
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50"
@@ -160,7 +178,7 @@ function CoverPickerSheet({ onFile, onUrl, onClose }) {
         ) : (
           <div className="grid grid-cols-3 gap-3">
             {/* Fotocamera */}
-            <button onClick={() => cameraRef.current.click()}
+            <button onClick={() => openPicker(cameraRef)}
               className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -169,7 +187,7 @@ function CoverPickerSheet({ onFile, onUrl, onClose }) {
               <span className="text-xs text-gray-600 font-medium">Fotocamera</span>
             </button>
             {/* Libreria */}
-            <button onClick={() => galleryRef.current.click()}
+            <button onClick={() => openPicker(galleryRef)}
               className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -189,9 +207,9 @@ function CoverPickerSheet({ onFile, onUrl, onClose }) {
 
         {/* Input nascosti */}
         <input ref={cameraRef}  type="file" accept="image/*" capture="environment"
-          className="hidden" onChange={e => { if (e.target.files[0]) onFile(e.target.files[0], true);  onClose() }} />
+          className="hidden" onChange={e => { waitingRef.current = false; if (e.target.files[0]) onFile(e.target.files[0], true);  onClose() }} />
         <input ref={galleryRef} type="file" accept="image/*"
-          className="hidden" onChange={e => { if (e.target.files[0]) onFile(e.target.files[0], false); onClose() }} />
+          className="hidden" onChange={e => { waitingRef.current = false; if (e.target.files[0]) onFile(e.target.files[0], false); onClose() }} />
       </div>
     </div>
   )
