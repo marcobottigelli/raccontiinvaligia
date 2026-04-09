@@ -148,6 +148,161 @@ function FonteBadge({ source }) {
   )
 }
 
+// ─── Book detail sheet ────────────────────────────────────────────────────────
+function BookDetailSheet({ libro, onClose }) {
+  if (!libro) return null
+
+  const statoLabel = { letto: '✓ Letto', in_lettura: '📖 In lettura', da_leggere: '⏳ Da leggere' }
+  const statoColor = {
+    letto:      'bg-green-100 text-green-700',
+    in_lettura: 'bg-blue-100 text-blue-700',
+    da_leggere: 'bg-gray-100 text-gray-600',
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Sheet: bottom on mobile, centered modal on desktop */}
+      <div className="fixed z-50 inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4">
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl sm:max-w-lg w-full sm:w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+
+          {/* Drag handle (mobile) */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="w-10 h-1 bg-gray-200 rounded-full" />
+          </div>
+
+          {/* Close button (desktop) */}
+          <div className="hidden sm:flex justify-end p-4 pb-0">
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-5 pt-3 sm:pt-2">
+
+            {/* Cover + titolo + autore */}
+            <div className="flex gap-4 mb-5">
+              <div className="flex-shrink-0">
+                {libro.copertina ? (
+                  <img
+                    src={libro.copertina}
+                    alt={libro.titolo}
+                    className="w-20 h-28 sm:w-24 sm:h-36 object-cover rounded-lg border border-gray-200 shadow-sm"
+                    onError={e => { e.target.src = 'https://placehold.co/80x112?text=?' }}
+                  />
+                ) : (
+                  <div className="w-20 h-28 sm:w-24 sm:h-36 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center text-3xl">
+                    📖
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-gray-900 text-lg leading-tight mb-1">
+                  {libro.titolo || <span className="text-gray-400 italic">Titolo mancante</span>}
+                </h2>
+                {libro.autore?.length > 0 && (
+                  <p className="text-sm text-gray-600 mb-2">{libro.autore.join(', ')}</p>
+                )}
+                <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statoColor[libro.stato_lettura] || statoColor.da_leggere}`}>
+                  {statoLabel[libro.stato_lettura] || libro.stato_lettura}
+                </span>
+                {libro.voto && (
+                  <div className="mt-2 flex gap-0.5">
+                    {[1,2,3,4,5].map(n => (
+                      <span key={n} className={`text-lg ${n <= libro.voto ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Metadati */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm mb-5 border-t border-gray-100 pt-4">
+              {libro.casa_editrice && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Casa editrice</p>
+                  <p className="text-gray-800 font-medium">{libro.casa_editrice}</p>
+                </div>
+              )}
+              {libro.anno_pubblicazione && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Anno</p>
+                  <p className="text-gray-800 font-medium">{libro.anno_pubblicazione}</p>
+                </div>
+              )}
+              {libro.pagine && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Pagine</p>
+                  <p className="text-gray-800 font-medium">{libro.pagine}</p>
+                </div>
+              )}
+              {libro.lingua_originale && (
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Lingua orig.</p>
+                  <p className="text-gray-800 font-medium">{libro.lingua_originale.toUpperCase()}</p>
+                </div>
+              )}
+              {libro.genere?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Genere</p>
+                  <p className="text-gray-800 font-medium">{libro.genere.join(', ')}</p>
+                </div>
+              )}
+              <div className="col-span-2">
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">ISBN</p>
+                <p className="text-gray-500 font-mono text-xs">{libro.isbn}</p>
+              </div>
+            </div>
+
+            {/* Descrizione */}
+            {libro.descrizione && (
+              <div className="mb-4 border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Descrizione</p>
+                <p className="text-sm text-gray-700 leading-relaxed line-clamp-6">{libro.descrizione}</p>
+              </div>
+            )}
+
+            {/* Note personali */}
+            {libro.note_personali && (
+              <div className="mb-4 border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Note personali</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{libro.note_personali}</p>
+              </div>
+            )}
+
+            {/* Azioni */}
+            <div className="flex gap-3 pt-4 border-t border-gray-100 pb-safe">
+              <Link
+                href={`/libro/${libro.id}`}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Modifica
+              </Link>
+              <button
+                onClick={onClose}
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Cover picker sheet ────────────────────────────────────────────────────────
 function CoverPickerSheet({ onFile, onUrl, onClose }) {
   const cameraRef   = useRef(null)
@@ -716,6 +871,7 @@ export default function Libri() {
   const [selected, setSelected]     = useState(new Set())
   const [showModal, setShowModal]   = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [selectedBook, setSelectedBook] = useState(null)
 
   // Sync filtro da URL
   useEffect(() => {
@@ -858,108 +1014,200 @@ export default function Libri() {
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-4 text-sm">{error}</div>
       )}
 
-      {/* TABLE */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={selected.size === libri.length && libri.length > 0}
-                    onChange={toggleSelectAll}
-                    className="rounded"
+      {/* ── MOBILE: card list ──────────────────────────────────────── */}
+      <div className="sm:hidden bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <input
+            type="checkbox"
+            checked={selected.size === libri.length && libri.length > 0}
+            onChange={toggleSelectAll}
+            className="rounded flex-shrink-0"
+          />
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            {libri.length} libri
+          </span>
+        </div>
+
+        {loading ? (
+          [...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 animate-pulse">
+              <div className="w-4 h-4 bg-gray-100 rounded flex-shrink-0" />
+              <div className="w-10 h-14 bg-gray-100 rounded flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-100 rounded w-3/4" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+              </div>
+            </div>
+          ))
+        ) : libri.length === 0 ? (
+          <div className="p-10 text-center text-gray-400">
+            <p className="text-4xl mb-3">📚</p>
+            <p className="text-sm">Nessun libro trovato.</p>
+          </div>
+        ) : (
+          libri.map(libro => (
+            <div
+              key={libro.id}
+              className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 active:bg-gray-50 transition-colors
+                ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}
+            >
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={selected.has(libro.id)}
+                onChange={() => toggleSelect(libro.id)}
+                className="rounded flex-shrink-0"
+                onClick={e => e.stopPropagation()}
+              />
+
+              {/* Tap area → detail sheet */}
+              <button
+                type="button"
+                onClick={() => setSelectedBook(libro)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                {/* Cover */}
+                {libro.copertina ? (
+                  <img
+                    src={libro.copertina}
+                    alt={libro.titolo || libro.isbn}
+                    className="w-10 h-14 object-cover rounded border border-gray-200 flex-shrink-0"
+                    onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }}
                   />
-                </th>
-                <th className="p-3 text-left font-medium text-gray-600 w-16">Copertina</th>
-                <th className="p-3 text-left font-medium text-gray-600">Titolo</th>
-                <th className="p-3 text-left font-medium text-gray-600">Autore</th>
-                <th className="p-3 text-left font-medium text-gray-600 w-16">Anno</th>
-                <th className="p-3 text-left font-medium text-gray-600">Stato</th>
-                <th className="p-3 text-left font-medium text-gray-600">Dati</th>
-                <th className="p-3 text-left font-medium text-gray-600 w-20">Azioni</th>
+                ) : (
+                  <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-base flex-shrink-0">
+                    📖
+                  </div>
+                )}
+
+                {/* Text */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm truncate leading-snug">
+                    {libro.titolo || <span className="text-gray-400 italic">Titolo mancante</span>}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {libro.autore?.length > 0 ? libro.autore.join(', ') : libro.isbn}
+                  </p>
+                  <div className="mt-1.5">
+                    <StatoBadge stato={libro.stato_lettura} />
+                  </div>
+                </div>
+
+                {/* Chevron */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── DESKTOP: table ─────────────────────────────────────────── */}
+      <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="p-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={selected.size === libri.length && libri.length > 0}
+                  onChange={toggleSelectAll}
+                  className="rounded"
+                />
+              </th>
+              <th className="p-3 text-left font-medium text-gray-600 w-16">Copertina</th>
+              <th className="p-3 text-left font-medium text-gray-600">Titolo</th>
+              <th className="p-3 text-left font-medium text-gray-600">Autore</th>
+              <th className="p-3 text-left font-medium text-gray-600 w-16">Anno</th>
+              <th className="p-3 text-left font-medium text-gray-600">Stato</th>
+              <th className="p-3 text-left font-medium text-gray-600">Dati</th>
+              <th className="p-3 text-left font-medium text-gray-600 w-20">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              [...Array(6)].map((_, i) => (
+                <tr key={i} className="border-b border-gray-100 animate-pulse">
+                  {[...Array(8)].map((_, j) => (
+                    <td key={j} className="p-3"><div className="h-4 bg-gray-100 rounded" /></td>
+                  ))}
+                </tr>
+              ))
+            ) : libri.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="p-12 text-center text-gray-400">
+                  <p className="text-4xl mb-3">📚</p>
+                  <p>Nessun libro trovato.</p>
+                  {filter === 'all' && (
+                    <p className="text-sm mt-2">
+                      Clicca <strong>"+ Aggiungi libro"</strong> per iniziare la tua libreria.
+                    </p>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                [...Array(6)].map((_, i) => (
-                  <tr key={i} className="border-b border-gray-100 animate-pulse">
-                    {[...Array(8)].map((_, j) => (
-                      <td key={j} className="p-3"><div className="h-4 bg-gray-100 rounded" /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : libri.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-12 text-center text-gray-400">
-                    <p className="text-4xl mb-3">📚</p>
-                    <p>Nessun libro trovato.</p>
-                    {filter === 'all' && (
-                      <p className="text-sm mt-2">
-                        Clicca <strong>"+ Aggiungi libro"</strong> per iniziare la tua libreria.
-                      </p>
+            ) : (
+              libri.map(libro => (
+                <tr
+                  key={libro.id}
+                  onClick={() => setSelectedBook(libro)}
+                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer
+                    ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}
+                >
+                  <td className="p-3" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(libro.id)}
+                      onChange={() => toggleSelect(libro.id)}
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="p-3">
+                    {libro.copertina ? (
+                      <img
+                        src={libro.copertina}
+                        alt={libro.titolo || libro.isbn}
+                        className="w-10 h-14 object-cover rounded border border-gray-200"
+                        onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }}
+                      />
+                    ) : (
+                      <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-lg">
+                        📖
+                      </div>
                     )}
                   </td>
+                  <td className="p-3">
+                    <div className="font-medium text-gray-800 max-w-xs truncate">
+                      {libro.titolo || <span className="text-gray-300 italic">— titolo mancante</span>}
+                    </div>
+                    <div className="font-mono text-xs text-gray-400 mt-0.5">{libro.isbn}</div>
+                  </td>
+                  <td className="p-3 text-gray-600 max-w-xs truncate">
+                    {libro.autore?.length > 0 ? libro.autore.join(', ') : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="p-3 text-gray-500">{libro.anno_pubblicazione || '—'}</td>
+                  <td className="p-3"><StatoBadge stato={libro.stato_lettura} /></td>
+                  <td className="p-3"><FonteBadge source={libro.data_source} /></td>
+                  <td className="p-3" onClick={e => e.stopPropagation()}>
+                    <Link
+                      href={`/libro/${libro.id}`}
+                      className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Modifica
+                    </Link>
+                  </td>
                 </tr>
-              ) : (
-                libri.map(libro => (
-                  <tr
-                    key={libro.id}
-                    className={`border-b border-gray-100 hover:bg-gray-50 transition-colors
-                      ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}
-                  >
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(libro.id)}
-                        onChange={() => toggleSelect(libro.id)}
-                        className="rounded"
-                      />
-                    </td>
-                    <td className="p-3">
-                      {libro.copertina ? (
-                        <img
-                          src={libro.copertina}
-                          alt={libro.titolo || libro.isbn}
-                          className="w-10 h-14 object-cover rounded border border-gray-200"
-                          onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }}
-                        />
-                      ) : (
-                        <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-lg">
-                          📖
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <div className="font-medium text-gray-800 max-w-xs truncate">
-                        {libro.titolo || <span className="text-gray-300 italic">— titolo mancante</span>}
-                      </div>
-                      <div className="font-mono text-xs text-gray-400 mt-0.5">{libro.isbn}</div>
-                    </td>
-                    <td className="p-3 text-gray-600 max-w-xs truncate">
-                      {libro.autore && libro.autore.length > 0
-                        ? libro.autore.join(', ')
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="p-3 text-gray-500">{libro.anno_pubblicazione || '—'}</td>
-                    <td className="p-3"><StatoBadge stato={libro.stato_lettura} /></td>
-                    <td className="p-3"><FonteBadge source={libro.data_source} /></td>
-                    <td className="p-3">
-                      <Link
-                        href={`/libro/${libro.id}`}
-                        className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                      >
-                        Modifica
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {/* Detail sheet */}
+      {selectedBook && (
+        <BookDetailSheet libro={selectedBook} onClose={() => setSelectedBook(null)} />
+      )}
 
       <AggiungiLibroModal
         isOpen={showModal}
