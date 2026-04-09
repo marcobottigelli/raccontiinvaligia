@@ -79,6 +79,37 @@ function BarcodeScanner({ onDetected, onClose }) {
   )
 }
 
+// ─── Star picker ──────────────────────────────────────────────────────────────
+function StarPicker({ value, onChange }) {
+  const [hovered, setHovered] = useState(null)
+  const display = hovered ?? value ?? 0
+  return (
+    <div className="flex gap-1" onMouseLeave={() => setHovered(null)}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n === value ? null : n)}
+          onMouseEnter={() => setHovered(n)}
+          className="text-2xl leading-none transition-transform active:scale-90 select-none"
+          aria-label={`${n} stelle`}
+        >
+          <span className={n <= display ? 'text-amber-400' : 'text-gray-300'}>★</span>
+        </button>
+      ))}
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="ml-1 text-xs text-gray-400 hover:text-gray-600 self-center"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Stato lettura badge ───────────────────────────────────────────────────────
 function StatoBadge({ stato }) {
   const map = {
@@ -231,7 +262,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   const [form, setForm]           = useState({
     titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
     descrizione: '', copertina: '', genere: '', lingua_originale: '',
-    pagine: '', stato_lettura: 'da_leggere', note_personali: '',
+    pagine: '', stato_lettura: 'letto', note_personali: '', voto: null,
   })
 
   async function loadPublishers() {
@@ -249,7 +280,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     setShowCoverPicker(false)
     setForm({ titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
       descrizione: '', copertina: '', genere: '', lingua_originale: '',
-      pagine: '', stato_lettura: 'da_leggere', note_personali: '' })
+      pagine: '', stato_lettura: 'letto', note_personali: '', voto: null })
   }
 
   // Carica immagine (camera o galleria), rimuove bg se camera, poi aggiorna form
@@ -307,8 +338,9 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
           genere:             (data.genere || []).join(', '),
           lingua_originale:   data.lingua_originale || '',
           pagine:             data.pagine || '',
-          stato_lettura:      'da_leggere',
+          stato_lettura:      'letto',
           note_personali:     '',
+          voto:               null,
         })
       } else if (res.status === 404) {
         setFound({ source: 'not_found' })
@@ -344,8 +376,9 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
           genere:             (data.genere || []).join(', '),
           lingua_originale:   data.lingua_originale || '',
           pagine:             data.pagine || '',
-          stato_lettura:      'da_leggere',
+          stato_lettura:      'letto',
           note_personali:     '',
+          voto:               null,
         })
       } else if (res.status === 404) {
         setFound({ source: 'not_found' })
@@ -377,6 +410,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
         pagine:             form.pagine ? parseInt(form.pagine) : null,
         stato_lettura:      form.stato_lettura,
         note_personali:     form.note_personali || null,
+        voto:               form.voto || null,
         data_source:        found && found.source !== 'not_found' ? 'api' : 'manual',
       }
       const res = await fetch('/api/libri', {
@@ -530,10 +564,10 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
                     onBlur={() => setTimeout(() => setShowPublishers(false), 150)}
                     className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  {showPublishers && publishers.length > 0 && (
+                  {showPublishers && publishers.length > 0 && form.casa_editrice.length >= 2 && (
                     <ul className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-44 overflow-y-auto">
                       {publishers
-                        .filter(p => !form.casa_editrice || p.toLowerCase().includes(form.casa_editrice.toLowerCase()))
+                        .filter(p => p.toLowerCase().includes(form.casa_editrice.toLowerCase()))
                         .map(p => (
                           <li key={p}>
                             <button
@@ -607,6 +641,12 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Voto personale */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Voto personale</label>
+                <StarPicker value={form.voto} onChange={v => setForm(f => ({ ...f, voto: v }))} />
               </div>
 
               {/* Descrizione */}
