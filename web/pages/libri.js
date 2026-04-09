@@ -1,8 +1,82 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
+
+// ─── Barcode Scanner overlay ───────────────────────────────────────────────────
+function BarcodeScanner({ onDetected, onClose }) {
+  const videoRef  = useRef(null)
+  const readerRef = useRef(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    let active = true
+
+    async function start() {
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser')
+        const reader = new BrowserMultiFormatReader()
+        readerRef.current = reader
+        await reader.decodeFromConstraints(
+          { video: { facingMode: 'environment' } },
+          videoRef.current,
+          (result, error) => {
+            if (result && active) {
+              active = false
+              onDetected(result.getText())
+            }
+          }
+        )
+      } catch (e) {
+        setErr('Impossibile accedere alla fotocamera: ' + e.message)
+      }
+    }
+
+    start()
+
+    return () => {
+      active = false
+      readerRef.current?.reset()
+    }
+  }, [onDetected])
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black flex flex-col">
+      {/* header */}
+      <div className="flex items-center justify-between px-5 py-4 bg-black/70">
+        <p className="text-white text-sm font-medium">Inquadra il codice a barre del libro</p>
+        <button onClick={onClose} className="text-white text-3xl leading-none hover:text-gray-300">×</button>
+      </div>
+
+      {/* video */}
+      <div className="flex-1 relative overflow-hidden">
+        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+
+        {/* mirino */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="relative w-72 h-28">
+            {/* angoli del mirino */}
+            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-brand-500 rounded-tl" />
+            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-brand-500 rounded-tr" />
+            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-brand-500 rounded-bl" />
+            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-brand-500 rounded-br" />
+            {/* linea laser */}
+            <div className="absolute left-4 right-4 top-1/2 h-0.5 bg-brand-500/70" />
+          </div>
+        </div>
+      </div>
+
+      {err && (
+        <div className="px-5 py-4 bg-red-900/80 text-red-200 text-sm text-center">{err}</div>
+      )}
+
+      <div className="px-5 py-4 bg-black/70 text-center">
+        <p className="text-gray-400 text-xs">ISBN-13 / EAN-13</p>
+      </div>
+    </div>
+  )
+}
 
 // ─── Stato lettura badge ───────────────────────────────────────────────────────
 function StatoBadge({ stato }) {
@@ -49,6 +123,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   const [saveLoading, setSaveLoading]     = useState(false)
   const [error, setError]         = useState(null)
   const [found, setFound]         = useState(null) // dati dal lookup
+  const [scanning, setScanning]   = useState(false)
   const [form, setForm]           = useState({
     titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
     descrizione: '', copertina: '', genere: '', lingua_originale: '',
@@ -56,10 +131,50 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   })
 
   function reset() {
-    setIsbn(''); setFound(null); setError(null)
+    setIsbn(''); setFound(null); setError(null); setScanning(false)
     setForm({ titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
       descrizione: '', copertina: '', genere: '', lingua_originale: '',
       pagine: '', stato_lettura: 'da_leggere', note_personali: '' })
+  }
+
+  async function handleBarcodeDetected(code) {
+    setScanning(false)
+    setIsbn(code)
+    setFound(null)
+    // Avvia lookup automaticamente dopo lo scan
+    setLookupLoading(true); setError(null)
+    try {
+      const res = await fetch('/api/isbn-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isbn: code.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setFound(data)
+        setForm({
+          titolo:             data.titolo || '',
+          autore:             (data.autore || []).join(', '),
+          casa_editrice:      data.casa_editrice || '',
+          anno_pubblicazione: data.anno_pubblicazione || '',
+          descrizione:        data.descrizione || '',
+          copertina:          data.copertina || '',
+          genere:             (data.genere || []).join(', '),
+          lingua_originale:   data.lingua_originale || '',
+          pagine:             data.pagine || '',
+          stato_lettura:      'da_leggere',
+          note_personali:     '',
+        })
+      } else if (res.status === 404) {
+        setFound({ source: 'not_found' })
+      } else {
+        setError(data.error || 'Errore nel lookup')
+      }
+    } catch (e) {
+      setError('Errore di rete: ' + e.message)
+    } finally {
+      setLookupLoading(false)
+    }
   }
 
   async function handleLookup() {
@@ -142,6 +257,13 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   if (!isOpen) return null
 
   return (
+    <>
+    {scanning && (
+      <BarcodeScanner
+        onDetected={handleBarcodeDetected}
+        onClose={() => setScanning(false)}
+      />
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -162,6 +284,18 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
                 onKeyDown={e => e.key === 'Enter' && handleLookup()}
                 className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+              {/* pulsante fotocamera */}
+              <button
+                type="button"
+                onClick={() => setScanning(true)}
+                title="Scansiona codice a barre"
+                className="px-3 py-2 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 hover:text-brand-500 hover:border-brand-300 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
               <button
                 onClick={handleLookup}
                 disabled={lookupLoading || !isbn.trim()}
@@ -333,6 +467,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
