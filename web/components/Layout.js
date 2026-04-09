@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
 import { useEffect, useRef } from 'react'
+import ChatWidget from './ChatWidget'
 
 export default function Layout({ children }) {
   const router = useRouter()
@@ -57,6 +58,9 @@ export default function Layout({ children }) {
                 </Link>
               ))}
             </nav>
+
+            {/* Chat AI — sempre visibile */}
+            <ChatWidget />
 
             {/* Gear / Close — sempre visibile */}
             <Link
