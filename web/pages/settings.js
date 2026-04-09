@@ -3,6 +3,101 @@ import Layout from '../components/Layout'
 
 const EMPTY_FORM = { servizio: '', api_key: '', note: '' }
 
+// ─── Colonne libreria ─────────────────────────────────────────────────────────
+const LS_KEY = 'libreria_cols_v1'
+
+export const DEFAULT_COLS = ['copertina', 'titolo', 'autore', 'stato_lettura']
+
+export const OPTIONAL_COLS = [
+  { key: 'anno',          label: 'Anno pubblicazione' },
+  { key: 'casa_editrice', label: 'Casa editrice'      },
+  { key: 'voto',          label: 'Voto stelline'      },
+  { key: 'genere',        label: 'Genere'             },
+  { key: 'lingua',        label: 'Lingua originale'   },
+  { key: 'pagine',        label: 'Pagine'             },
+  { key: 'fonte',         label: 'Fonte dati'         },
+  { key: 'isbn',          label: 'ISBN'               },
+]
+
+export function loadExtraCols() {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+}
+
+function saveExtraCols(cols) {
+  localStorage.setItem(LS_KEY, JSON.stringify(cols))
+}
+
+function ColonneLibreria() {
+  const [extras, setExtras] = useState([])
+
+  useEffect(() => { setExtras(loadExtraCols()) }, [])
+
+  function toggle(key) {
+    const next = extras.includes(key) ? extras.filter(k => k !== key) : [...extras, key]
+    setExtras(next)
+    saveExtraCols(next)
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
+      <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">
+        Colonne libreria
+      </h2>
+      <p className="text-xs text-gray-400 mb-4">
+        I campi in grigio sono sempre visibili. Aggiungerne altri attiva lo scroll orizzontale su mobile.
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {/* Default — grayed, non cliccabili */}
+        {DEFAULT_COLS.map(key => (
+          <span
+            key={key}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-400 border border-gray-200 cursor-default select-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            {OPTIONAL_COLS.find(c => c.key === key)?.label ?? key.replace('_', ' ')}
+          </span>
+        ))}
+
+        {/* Opzionali — togglabili */}
+        {OPTIONAL_COLS.map(col => {
+          const active = extras.includes(col.key)
+          return (
+            <button
+              key={col.key}
+              type="button"
+              onClick={() => toggle(col.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                ${active
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              {active && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {col.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {extras.length > 0 && (
+        <p className="mt-3 text-xs text-amber-600 flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {extras.length} campo{extras.length > 1 ? 'i extra attivi' : ' extra attivo'} — visualizzazione a tabella su mobile.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
@@ -77,6 +172,9 @@ export default function Settings() {
           {error}
         </div>
       )}
+
+      {/* COLONNE LIBRERIA */}
+      <ColonneLibreria />
 
       {/* FORM aggiunta / modifica */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">

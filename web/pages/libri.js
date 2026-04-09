@@ -1,8 +1,27 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
+
+// ─── Colonne preferite (sync con settings.js) ────────────────────────────────
+const LS_KEY = 'libreria_cols_v1'
+
+const OPTIONAL_COLS = [
+  { key: 'anno',          label: 'Anno',             render: l => l.anno_pubblicazione || '—' },
+  { key: 'casa_editrice', label: 'Casa editrice',    render: l => l.casa_editrice || '—' },
+  { key: 'voto',          label: 'Voto',             render: l => l.voto ? '★'.repeat(l.voto) + '☆'.repeat(5 - l.voto) : '—' },
+  { key: 'genere',        label: 'Genere',           render: l => l.genere?.join(', ') || '—' },
+  { key: 'lingua',        label: 'Lingua',           render: l => l.lingua_originale?.toUpperCase() || '—' },
+  { key: 'pagine',        label: 'Pagine',           render: l => l.pagine || '—' },
+  { key: 'fonte',         label: 'Fonte',            render: l => l.data_source || '—', Component: ({ libro }) => <FonteBadge source={libro.data_source} /> },
+  { key: 'isbn',          label: 'ISBN',             render: l => l.isbn, className: 'font-mono text-xs' },
+]
+
+function loadExtraCols() {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+}
 
 // ─── Barcode Scanner overlay ───────────────────────────────────────────────────
 function BarcodeScanner({ onDetected, onClose }) {
@@ -872,6 +891,11 @@ export default function Libri() {
   const [showModal, setShowModal]   = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [selectedBook, setSelectedBook] = useState(null)
+  const [extraCols, setExtraCols]   = useState([])
+  const [groupBy, setGroupBy]       = useState('none') // 'none' | 'casa_editrice'
+
+  // Carica preferenze colonne da localStorage
+  useEffect(() => { setExtraCols(loadExtraCols()) }, [])
 
   // Sync filtro da URL
   useEffect(() => {
@@ -947,6 +971,22 @@ export default function Libri() {
     setLibri(prev => [newLibro, ...prev])
   }
 
+  // Raggruppamento
+  const groups = groupBy === 'casa_editrice'
+    ? Object.entries(
+        libri.reduce((acc, l) => {
+          const k = l.casa_editrice || '— Senza editore'
+          if (!acc[k]) acc[k] = []
+          acc[k].push(l)
+          return acc
+        }, {})
+      ).sort(([a], [b]) => a.localeCompare(b, 'it'))
+    : [['', libri]]
+
+  // Colonne extra attive
+  const activeCols = OPTIONAL_COLS.filter(c => extraCols.includes(c.key))
+  const useScrollMobile = activeCols.length > 0
+
   return (
     <Layout>
       {/* HEADER */}
@@ -986,6 +1026,18 @@ export default function Libri() {
                 {f.label}
               </button>
             ))}
+            <button
+              onClick={() => setGroupBy(g => g === 'casa_editrice' ? 'none' : 'casa_editrice')}
+              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
+                ${groupBy === 'casa_editrice'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              Per editore
+            </button>
           </div>
         </div>
       </div>
@@ -1014,19 +1066,19 @@ export default function Libri() {
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-4 text-sm">{error}</div>
       )}
 
-      {/* ── MOBILE: card list ──────────────────────────────────────── */}
+      {/* ── MOBILE: card list (default) o scroll table (extra cols) ─── */}
       <div className="sm:hidden bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {/* Header */}
+        {/* Header row */}
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <input
-            type="checkbox"
-            checked={selected.size === libri.length && libri.length > 0}
-            onChange={toggleSelectAll}
-            className="rounded flex-shrink-0"
-          />
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            {libri.length} libri
-          </span>
+          <input type="checkbox" checked={selected.size === libri.length && libri.length > 0}
+            onChange={toggleSelectAll} className="rounded flex-shrink-0" />
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{libri.length} libri</span>
+          {useScrollMobile && (
+            <span className="ml-auto text-xs text-amber-600 flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              scroll
+            </span>
+          )}
         </div>
 
         {loading ? (
@@ -1045,62 +1097,88 @@ export default function Libri() {
             <p className="text-4xl mb-3">📚</p>
             <p className="text-sm">Nessun libro trovato.</p>
           </div>
+        ) : useScrollMobile ? (
+          /* ── scroll table mobile (extra cols attive) ─────────── */
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-left">
+                  <th className="p-2 w-8" />
+                  <th className="p-2 w-12 text-xs font-medium text-gray-500">Cover</th>
+                  <th className="p-2 text-xs font-medium text-gray-500">Titolo</th>
+                  <th className="p-2 text-xs font-medium text-gray-500">Stato</th>
+                  {activeCols.map(col => (
+                    <th key={col.key} className="p-2 text-xs font-medium text-gray-500 whitespace-nowrap">{col.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {groups.flatMap(([groupName, groupLibri]) => [
+                  groupName && (
+                    <tr key={`gh-${groupName}`} className="bg-indigo-50 border-y border-indigo-100">
+                      <td colSpan={4 + activeCols.length} className="px-3 py-1.5 text-xs font-semibold text-indigo-700 uppercase tracking-wide">{groupName}</td>
+                    </tr>
+                  ),
+                  ...groupLibri.map(libro => (
+                    <tr key={libro.id} onClick={() => setSelectedBook(libro)}
+                      className={`border-b border-gray-100 cursor-pointer active:bg-gray-50 ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
+                      <td className="p-2" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)} className="rounded" />
+                      </td>
+                      <td className="p-2">
+                        {libro.copertina
+                          ? <img src={libro.copertina} alt="" className="w-8 h-11 object-cover rounded border border-gray-200" onError={e => { e.target.src = 'https://placehold.co/32x44?text=?' }} />
+                          : <div className="w-8 h-11 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-xs">📖</div>}
+                      </td>
+                      <td className="p-2 max-w-[120px]">
+                        <p className="font-medium text-gray-900 text-xs truncate">{libro.titolo || '—'}</p>
+                        <p className="text-gray-400 text-xs truncate">{libro.autore?.join(', ') || libro.isbn}</p>
+                      </td>
+                      <td className="p-2"><StatoBadge stato={libro.stato_lettura} /></td>
+                      {activeCols.map(col => (
+                        <td key={col.key} className={`p-2 text-xs text-gray-600 whitespace-nowrap ${col.className || ''}`}>
+                          {col.Component ? <col.Component libro={libro} /> : col.render(libro)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ].filter(Boolean))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          libri.map(libro => (
-            <div
-              key={libro.id}
-              className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 active:bg-gray-50 transition-colors
-                ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}
-            >
-              {/* Checkbox */}
-              <input
-                type="checkbox"
-                checked={selected.has(libro.id)}
-                onChange={() => toggleSelect(libro.id)}
-                className="rounded flex-shrink-0"
-                onClick={e => e.stopPropagation()}
-              />
-
-              {/* Tap area → detail sheet */}
-              <button
-                type="button"
-                onClick={() => setSelectedBook(libro)}
-                className="flex items-center gap-3 flex-1 min-w-0 text-left"
-              >
-                {/* Cover */}
-                {libro.copertina ? (
-                  <img
-                    src={libro.copertina}
-                    alt={libro.titolo || libro.isbn}
-                    className="w-10 h-14 object-cover rounded border border-gray-200 flex-shrink-0"
-                    onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }}
-                  />
-                ) : (
-                  <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-base flex-shrink-0">
-                    📖
+          /* ── card list mobile (nessuna extra col) ────────────── */
+          groups.flatMap(([groupName, groupLibri]) => [
+            groupName && (
+              <div key={`gh-${groupName}`} className="px-4 py-2 bg-indigo-50 border-y border-indigo-100 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                {groupName}
+              </div>
+            ),
+            ...groupLibri.map(libro => (
+              <div key={libro.id}
+                className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 active:bg-gray-50 transition-colors ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
+                <input type="checkbox" checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)}
+                  className="rounded flex-shrink-0" onClick={e => e.stopPropagation()} />
+                <button type="button" onClick={() => setSelectedBook(libro)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                  {libro.copertina
+                    ? <img src={libro.copertina} alt={libro.titolo || libro.isbn} className="w-10 h-14 object-cover rounded border border-gray-200 flex-shrink-0" onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }} />
+                    : <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-base flex-shrink-0">📖</div>}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm truncate leading-snug">
+                      {libro.titolo || <span className="text-gray-400 italic">Titolo mancante</span>}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                      {libro.autore?.length > 0 ? libro.autore.join(', ') : libro.isbn}
+                    </p>
+                    <div className="mt-1.5"><StatoBadge stato={libro.stato_lettura} /></div>
                   </div>
-                )}
-
-                {/* Text */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm truncate leading-snug">
-                    {libro.titolo || <span className="text-gray-400 italic">Titolo mancante</span>}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
-                    {libro.autore?.length > 0 ? libro.autore.join(', ') : libro.isbn}
-                  </p>
-                  <div className="mt-1.5">
-                    <StatoBadge stato={libro.stato_lettura} />
-                  </div>
-                </div>
-
-                {/* Chevron */}
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-shrink-0">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          ))
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            ))
+          ].filter(Boolean))
         )}
       </div>
 
@@ -1110,12 +1188,8 @@ export default function Libri() {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="p-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={selected.size === libri.length && libri.length > 0}
-                  onChange={toggleSelectAll}
-                  className="rounded"
-                />
+                <input type="checkbox" checked={selected.size === libri.length && libri.length > 0}
+                  onChange={toggleSelectAll} className="rounded" />
               </th>
               <th className="p-3 text-left font-medium text-gray-600 w-16">Copertina</th>
               <th className="p-3 text-left font-medium text-gray-600">Titolo</th>
@@ -1123,6 +1197,9 @@ export default function Libri() {
               <th className="p-3 text-left font-medium text-gray-600 w-16">Anno</th>
               <th className="p-3 text-left font-medium text-gray-600">Stato</th>
               <th className="p-3 text-left font-medium text-gray-600">Dati</th>
+              {activeCols.map(col => (
+                <th key={col.key} className="p-3 text-left font-medium text-gray-600 whitespace-nowrap">{col.label}</th>
+              ))}
               <th className="p-3 text-left font-medium text-gray-600 w-20">Azioni</th>
             </tr>
           </thead>
@@ -1130,75 +1207,63 @@ export default function Libri() {
             {loading ? (
               [...Array(6)].map((_, i) => (
                 <tr key={i} className="border-b border-gray-100 animate-pulse">
-                  {[...Array(8)].map((_, j) => (
+                  {[...Array(8 + activeCols.length)].map((_, j) => (
                     <td key={j} className="p-3"><div className="h-4 bg-gray-100 rounded" /></td>
                   ))}
                 </tr>
               ))
             ) : libri.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-12 text-center text-gray-400">
+                <td colSpan={8 + activeCols.length} className="p-12 text-center text-gray-400">
                   <p className="text-4xl mb-3">📚</p>
                   <p>Nessun libro trovato.</p>
-                  {filter === 'all' && (
-                    <p className="text-sm mt-2">
-                      Clicca <strong>"+ Aggiungi libro"</strong> per iniziare la tua libreria.
-                    </p>
-                  )}
+                  {filter === 'all' && <p className="text-sm mt-2">Clicca <strong>"+ Aggiungi libro"</strong> per iniziare.</p>}
                 </td>
               </tr>
             ) : (
-              libri.map(libro => (
-                <tr
-                  key={libro.id}
-                  onClick={() => setSelectedBook(libro)}
-                  className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer
-                    ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}
-                >
-                  <td className="p-3" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(libro.id)}
-                      onChange={() => toggleSelect(libro.id)}
-                      className="rounded"
-                    />
-                  </td>
-                  <td className="p-3">
-                    {libro.copertina ? (
-                      <img
-                        src={libro.copertina}
-                        alt={libro.titolo || libro.isbn}
-                        className="w-10 h-14 object-cover rounded border border-gray-200"
-                        onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }}
-                      />
-                    ) : (
-                      <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-lg">
-                        📖
+              groups.flatMap(([groupName, groupLibri]) => [
+                groupName && (
+                  <tr key={`gh-${groupName}`} className="bg-indigo-50 border-y border-indigo-100">
+                    <td colSpan={8 + activeCols.length} className="px-4 py-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide">{groupName}</td>
+                  </tr>
+                ),
+                ...groupLibri.map(libro => (
+                  <tr key={libro.id} onClick={() => setSelectedBook(libro)}
+                    className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
+                    <td className="p-3" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)} className="rounded" />
+                    </td>
+                    <td className="p-3">
+                      {libro.copertina
+                        ? <img src={libro.copertina} alt={libro.titolo || libro.isbn} className="w-10 h-14 object-cover rounded border border-gray-200" onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }} />
+                        : <div className="w-10 h-14 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-300 text-lg">📖</div>}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-medium text-gray-800 max-w-xs truncate">
+                        {libro.titolo || <span className="text-gray-300 italic">— titolo mancante</span>}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div className="font-medium text-gray-800 max-w-xs truncate">
-                      {libro.titolo || <span className="text-gray-300 italic">— titolo mancante</span>}
-                    </div>
-                    <div className="font-mono text-xs text-gray-400 mt-0.5">{libro.isbn}</div>
-                  </td>
-                  <td className="p-3 text-gray-600 max-w-xs truncate">
-                    {libro.autore?.length > 0 ? libro.autore.join(', ') : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="p-3 text-gray-500">{libro.anno_pubblicazione || '—'}</td>
-                  <td className="p-3"><StatoBadge stato={libro.stato_lettura} /></td>
-                  <td className="p-3"><FonteBadge source={libro.data_source} /></td>
-                  <td className="p-3" onClick={e => e.stopPropagation()}>
-                    <Link
-                      href={`/libro/${libro.id}`}
-                      className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                    >
-                      Modifica
-                    </Link>
-                  </td>
-                </tr>
-              ))
+                      <div className="font-mono text-xs text-gray-400 mt-0.5">{libro.isbn}</div>
+                    </td>
+                    <td className="p-3 text-gray-600 max-w-xs truncate">
+                      {libro.autore?.length > 0 ? libro.autore.join(', ') : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="p-3 text-gray-500">{libro.anno_pubblicazione || '—'}</td>
+                    <td className="p-3"><StatoBadge stato={libro.stato_lettura} /></td>
+                    <td className="p-3"><FonteBadge source={libro.data_source} /></td>
+                    {activeCols.map(col => (
+                      <td key={col.key} className={`p-3 text-gray-600 ${col.className || ''}`}>
+                        {col.Component ? <col.Component libro={libro} /> : col.render(libro)}
+                      </td>
+                    ))}
+                    <td className="p-3" onClick={e => e.stopPropagation()}>
+                      <Link href={`/libro/${libro.id}`}
+                        className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                        Modifica
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ].filter(Boolean))
             )}
           </tbody>
         </table>

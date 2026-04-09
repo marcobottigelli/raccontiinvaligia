@@ -31,6 +31,37 @@ function StatoToggle({ value, onChange }) {
   )
 }
 
+// ─── Star picker ─────────────────────────────────────────────────────────────
+function StarPicker({ value, onChange }) {
+  const [hovered, setHovered] = useState(null)
+  const display = hovered ?? value ?? 0
+  return (
+    <div className="flex items-center gap-1" onMouseLeave={() => setHovered(null)}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n === value ? null : n)}
+          onMouseEnter={() => setHovered(n)}
+          className="text-3xl leading-none transition-transform active:scale-90 select-none"
+          aria-label={`${n} stelle`}
+        >
+          <span className={n <= display ? 'text-amber-400' : 'text-gray-200'}>★</span>
+        </button>
+      ))}
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="ml-2 text-xs text-gray-400 hover:text-gray-600 self-center"
+        >
+          ✕ rimuovi
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Campo form ──────────────────────────────────────────────────────────────
 function Campo({ label, children, note }) {
   return (
@@ -76,6 +107,7 @@ export default function DettaglioLibro() {
           pagine:             data.pagine || '',
           stato_lettura:      data.stato_lettura || 'da_leggere',
           note_personali:     data.note_personali || '',
+          voto:               data.voto || null,
           data_source:        data.data_source || 'pending',
         })
       } catch (e) {
@@ -109,6 +141,7 @@ export default function DettaglioLibro() {
         pagine:             form.pagine ? parseInt(form.pagine) : null,
         stato_lettura:      form.stato_lettura,
         note_personali:     form.note_personali || null,
+        voto:               form.voto || null,
         data_source:        form.data_source,
       }
       const res = await fetch('/api/libri', {
@@ -216,6 +249,12 @@ export default function DettaglioLibro() {
                 value={form?.stato_lettura}
                 onChange={v => setField('stato_lettura', v)}
               />
+            </div>
+
+            {/* Voto personale */}
+            <div className="mt-4">
+              <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Voto personale</p>
+              <StarPicker value={form?.voto} onChange={v => setField('voto', v)} />
             </div>
           </div>
         </div>
