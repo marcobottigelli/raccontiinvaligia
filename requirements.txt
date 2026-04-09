@@ -1,0 +1,15 @@
+# RaccontiInValigia — Dipendenze Python
+
+# Database
+supabase>=2.5.0
+python-dotenv>=1.0.0
+
+# HTTP
+requests>=2.31.0
+
+# CLI
+tqdm>=4.66.0
+
+# Rimozione sfondo copertine (locale, gratuito)
+rembg>=2.0.50
+Pillow>=10.0.0

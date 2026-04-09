@@ -1,0 +1,7 @@
+# RaccontiInValigia — Lista ISBN da importare
+# Un ISBN per riga (ISBN-10 o ISBN-13, con o senza trattini)
+# Le righe che iniziano con # sono ignorate
+
+# Esempi:
+# 9788804668237
+# 978-88-04-66823-7

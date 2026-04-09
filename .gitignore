@@ -1,0 +1,22 @@
+# Credenziali
+.env
+web/.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+.next/
+
+# Foto processate (grandi file binari)
+data/photos/processed/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
