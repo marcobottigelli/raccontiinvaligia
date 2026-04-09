@@ -230,16 +230,16 @@ function BookDetailSheet({ libro, onClose }) {
                 {libro.autore?.length > 0 && (
                   <p className="text-sm text-gray-600 mb-2">{libro.autore.join(', ')}</p>
                 )}
-                <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statoColor[libro.stato_lettura] || statoColor.da_leggere}`}>
-                  {statoLabel[libro.stato_lettura] || libro.stato_lettura}
-                </span>
-                {libro.voto && (
-                  <div className="mt-2 flex gap-0.5">
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statoColor[libro.stato_lettura] || statoColor.da_leggere}`}>
+                    {statoLabel[libro.stato_lettura] || libro.stato_lettura}
+                  </span>
+                  <div className="flex gap-0.5" title={libro.voto ? `${libro.voto} stelle` : 'Non valutato'}>
                     {[1,2,3,4,5].map(n => (
-                      <span key={n} className={`text-lg ${n <= libro.voto ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
+                      <span key={n} className={`text-lg leading-none ${libro.voto && n <= libro.voto ? 'text-amber-400' : 'text-gray-200'}`}>★</span>
                     ))}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
@@ -1170,7 +1170,14 @@ export default function Libri() {
                     <p className="text-xs text-gray-500 truncate mt-0.5">
                       {libro.autore?.length > 0 ? libro.autore.join(', ') : libro.isbn}
                     </p>
-                    <div className="mt-1.5"><StatoBadge stato={libro.stato_lettura} /></div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <StatoBadge stato={libro.stato_lettura} />
+                      {libro.voto && (
+                        <span className="text-amber-400 text-xs tracking-tight">
+                          {'★'.repeat(libro.voto)}{'☆'.repeat(5 - libro.voto)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-shrink-0">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
