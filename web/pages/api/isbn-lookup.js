@@ -36,9 +36,12 @@ export default async function handler(req, res) {
             || v.imageLinks.medium
             || v.imageLinks.thumbnail
             || null
-          // Migliora la qualità: zoom=1 → zoom=0
+          // Migliora la qualità: zoom=1 → zoom=0, forza HTTPS
           if (copertina) {
-            copertina = copertina.replace('zoom=1', 'zoom=0').replace('&edge=curl', '')
+            copertina = copertina
+              .replace('zoom=1', 'zoom=0')
+              .replace('&edge=curl', '')
+              .replace(/^http:\/\//, 'https://')
           }
         }
 

@@ -117,25 +117,151 @@ function FonteBadge({ source }) {
   )
 }
 
+// ─── Cover picker sheet ────────────────────────────────────────────────────────
+function CoverPickerSheet({ onFile, onUrl, onClose }) {
+  const cameraRef  = useRef(null)
+  const galleryRef = useRef(null)
+  const [urlMode, setUrlMode] = useState(false)
+  const [urlVal,  setUrlVal]  = useState('')
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50"
+         onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5 pb-8 sm:pb-5"
+           onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <p className="font-semibold text-gray-900">Cambia copertina</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+
+        {urlMode ? (
+          <div className="space-y-3">
+            <input
+              type="url"
+              autoFocus
+              placeholder="https://..."
+              value={urlVal}
+              onChange={e => setUrlVal(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setUrlMode(false)}
+                className="flex-1 py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200">
+                Indietro
+              </button>
+              <button
+                disabled={!urlVal.trim()}
+                onClick={() => { onUrl(urlVal.trim()); onClose() }}
+                className="flex-1 py-2 text-sm text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-40">
+                Usa URL
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {/* Fotocamera */}
+            <button onClick={() => cameraRef.current.click()}
+              className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-xs text-gray-600 font-medium">Fotocamera</span>
+            </button>
+            {/* Libreria */}
+            <button onClick={() => galleryRef.current.click()}
+              className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-xs text-gray-600 font-medium">Libreria</span>
+            </button>
+            {/* URL */}
+            <button onClick={() => setUrlMode(true)}
+              className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span className="text-xs text-gray-600 font-medium">URL</span>
+            </button>
+          </div>
+        )}
+
+        {/* Input nascosti */}
+        <input ref={cameraRef}  type="file" accept="image/*" capture="environment"
+          className="hidden" onChange={e => { if (e.target.files[0]) onFile(e.target.files[0], true);  onClose() }} />
+        <input ref={galleryRef} type="file" accept="image/*"
+          className="hidden" onChange={e => { if (e.target.files[0]) onFile(e.target.files[0], false); onClose() }} />
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal aggiungi libro ──────────────────────────────────────────────────────
 function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   const [isbn, setIsbn]           = useState('')
   const [lookupLoading, setLookupLoading] = useState(false)
   const [saveLoading, setSaveLoading]     = useState(false)
   const [error, setError]         = useState(null)
-  const [found, setFound]         = useState(null) // dati dal lookup
+  const [found, setFound]         = useState(null)
   const [scanning, setScanning]   = useState(false)
+  const [showCoverPicker, setShowCoverPicker] = useState(false)
+  const [coverUploading, setCoverUploading]   = useState(false)
+  // autocomplete casa editrice
+  const [publishers, setPublishers]             = useState([])
+  const [showPublishers, setShowPublishers]     = useState(false)
   const [form, setForm]           = useState({
     titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
     descrizione: '', copertina: '', genere: '', lingua_originale: '',
     pagine: '', stato_lettura: 'da_leggere', note_personali: '',
   })
 
+  async function loadPublishers() {
+    if (publishers.length > 0) return
+    try {
+      const res  = await fetch('/api/libri')
+      const data = await res.json()
+      const pubs = [...new Set((data || []).map(l => l.casa_editrice).filter(Boolean))].sort()
+      setPublishers(pubs)
+    } catch (_) {}
+  }
+
   function reset() {
     setIsbn(''); setFound(null); setError(null); setScanning(false)
+    setShowCoverPicker(false)
     setForm({ titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
       descrizione: '', copertina: '', genere: '', lingua_originale: '',
       pagine: '', stato_lettura: 'da_leggere', note_personali: '' })
+  }
+
+  // Carica immagine (camera o galleria), rimuove bg se camera, poi aggiorna form
+  async function handleImageFile(file, isCamera) {
+    setCoverUploading(true); setError(null)
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res  = await fetch('/api/remove-bg', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          imageBase64: base64,
+          mimeType:    file.type,
+          filename:    file.name,
+          removeBg:    isCamera,  // rimuovi sfondo solo per foto scattate
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setForm(f => ({ ...f, copertina: data.url }))
+    } catch (e) {
+      setError('Errore caricamento immagine: ' + e.message)
+    } finally {
+      setCoverUploading(false)
+    }
   }
 
   async function handleBarcodeDetected(code) {
@@ -265,6 +391,13 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
         onClose={() => setScanning(false)}
       />
     )}
+    {showCoverPicker && (
+      <CoverPickerSheet
+        onFile={handleImageFile}
+        onUrl={url => setForm(f => ({ ...f, copertina: url }))}
+        onClose={() => setShowCoverPicker(false)}
+      />
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -315,26 +448,36 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
 
           {(found !== null) && (
             <>
-              {/* Copertina preview */}
-              {form.copertina && (
-                <div className="flex gap-4 items-start">
-                  <img
-                    src={form.copertina}
-                    alt="Copertina"
-                    className="w-20 h-28 object-cover rounded-lg border border-gray-200 shadow-sm"
-                    onError={e => { e.target.style.display = 'none' }}
-                  />
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">URL copertina</label>
-                    <input
-                      type="text"
-                      value={form.copertina}
-                      onChange={e => setForm(f => ({ ...f, copertina: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
+              {/* Copertina */}
+              <div className="flex gap-4 items-center">
+                {/* Preview */}
+                <div className="w-20 h-28 flex-shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
+                  {coverUploading ? (
+                    <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  ) : form.copertina ? (
+                    <img src={form.copertina} alt="Copertina"
+                      className="w-full h-full object-cover"
+                      onError={e => { e.target.style.display = 'none' }} />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" className="text-gray-300">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )}
                 </div>
-              )}
+                {/* Pulsante cambia */}
+                <button
+                  type="button"
+                  onClick={() => setShowCoverPicker(true)}
+                  disabled={coverUploading}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-brand-300 hover:text-brand-600 transition-colors disabled:opacity-50"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {form.copertina ? 'Cambia copertina' : 'Aggiungi copertina'}
+                </button>
+              </div>
 
               {/* Titolo */}
               <div>
@@ -359,12 +502,34 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
 
               {/* Casa editrice + Anno */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Casa editrice</label>
-                  <input type="text" value={form.casa_editrice}
+                  <input
+                    type="text"
+                    value={form.casa_editrice}
                     onChange={e => setForm(f => ({ ...f, casa_editrice: e.target.value }))}
+                    onFocus={() => { loadPublishers(); setShowPublishers(true) }}
+                    onBlur={() => setTimeout(() => setShowPublishers(false), 150)}
                     className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
+                  {showPublishers && publishers.length > 0 && (
+                    <ul className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-44 overflow-y-auto">
+                      {publishers
+                        .filter(p => !form.casa_editrice || p.toLowerCase().includes(form.casa_editrice.toLowerCase()))
+                        .map(p => (
+                          <li key={p}>
+                            <button
+                              type="button"
+                              onMouseDown={() => setForm(f => ({ ...f, casa_editrice: p }))}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                            >
+                              {p}
+                            </button>
+                          </li>
+                        ))
+                      }
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Anno</label>
