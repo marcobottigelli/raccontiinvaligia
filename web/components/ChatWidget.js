@@ -112,7 +112,7 @@ export default function ChatWidget() {
             ? 'bg-brand-500 text-white'
             : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
           <path strokeLinecap="round" strokeLinejoin="round"
             d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           <path strokeLinecap="round" strokeLinejoin="round"
@@ -129,11 +129,11 @@ export default function ChatWidget() {
             onClick={() => setOpen(false)}
           />
 
-          {/* Pannello: full-screen mobile, floating desktop */}
+          {/* Pannello: full-screen mobile (sopra bottom nav), floating desktop */}
           <div className="
             fixed z-50
-            inset-0 sm:inset-auto
-            sm:bottom-4 sm:right-4
+            top-0 inset-x-0 bottom-16
+            sm:inset-auto sm:bottom-4 sm:right-4
             sm:w-[420px] sm:h-[620px]
             bg-white sm:rounded-2xl shadow-2xl
             flex flex-col overflow-hidden

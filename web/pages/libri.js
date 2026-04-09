@@ -1172,11 +1172,11 @@ export default function Libri() {
                     </p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <StatoBadge stato={libro.stato_lettura} />
-                      {libro.voto && (
-                        <span className="text-amber-400 text-xs tracking-tight">
-                          {'★'.repeat(libro.voto)}{'☆'.repeat(5 - libro.voto)}
-                        </span>
-                      )}
+                      <span className="text-xs tracking-tight">
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} className={n <= (libro.voto||0) ? 'text-amber-400' : 'text-gray-300'}>★</span>
+                        ))}
+                      </span>
                     </div>
                   </div>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-gray-300 flex-shrink-0">

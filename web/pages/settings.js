@@ -305,17 +305,6 @@ export default function Settings() {
         )}
       </div>
 
-      {/* SQL hint */}
-      <div className="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-5">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Setup DB (solo prima volta)</p>
-        <pre className="text-xs text-gray-600 overflow-x-auto">{`CREATE TABLE impostazioni (
-  id            SERIAL PRIMARY KEY,
-  servizio      TEXT NOT NULL,
-  api_key       TEXT,
-  note          TEXT,
-  aggiornato_il TIMESTAMPTZ DEFAULT now()
-);`}</pre>
-      </div>
     </Layout>
   )
 }

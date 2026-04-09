@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     let query = supabase
       .from('libri')
-      .select('id,isbn,titolo,autore,casa_editrice,anno_pubblicazione,copertina,genere,lingua_originale,pagine,stato_lettura,data_source,wordpress_status,note_personali,created_at')
+      .select('id,isbn,titolo,autore,casa_editrice,anno_pubblicazione,copertina,genere,lingua_originale,pagine,stato_lettura,voto,data_source,wordpress_status,note_personali,created_at')
       .order('created_at', { ascending: false })
       .limit(parseInt(limit))
 
