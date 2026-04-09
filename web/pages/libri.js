@@ -430,6 +430,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   const [scanning, setScanning]   = useState(false)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
   const [coverUploading, setCoverUploading]   = useState(false)
+  const [duplicate, setDuplicate] = useState(null)  // { id, titolo } se ISBN già presente
   // autocomplete casa editrice
   const [publishers, setPublishers]             = useState([])
   const [showPublishers, setShowPublishers]     = useState(false)
@@ -449,8 +450,19 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     } catch (_) {}
   }
 
+  async function checkDuplicate(isbnCode) {
+    const clean = isbnCode.trim().replace(/[-\s]/g, '')
+    if (!clean) return false
+    try {
+      const res = await fetch(`/api/libri?isbn_exact=${encodeURIComponent(clean)}`)
+      const data = await res.json()
+      if (data?.id) { setDuplicate(data); return true }
+    } catch (_) {}
+    return false
+  }
+
   function reset() {
-    setIsbn(''); setFound(null); setError(null); setScanning(false)
+    setIsbn(''); setFound(null); setError(null); setDuplicate(null); setScanning(false)
     setShowCoverPicker(false)
     setForm({ titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
       descrizione: '', copertina: '', genere: '', lingua_originale: '',
@@ -491,6 +503,10 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     setScanning(false)
     setIsbn(code)
     setFound(null)
+    setDuplicate(null)
+    // Controlla se già in libreria
+    const isDup = await checkDuplicate(code)
+    if (isDup) return
     // Avvia lookup automaticamente dopo lo scan
     setLookupLoading(true); setError(null)
     try {
@@ -569,7 +585,10 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
 
   async function handleSave() {
     if (!isbn.trim()) return
-    setSaveLoading(true); setError(null)
+    setSaveLoading(true); setError(null); setDuplicate(null)
+    // Controlla duplicato prima di salvare
+    const isDup = await checkDuplicate(isbn)
+    if (isDup) { setSaveLoading(false); return }
     try {
       const payload = {
         isbn:               isbn.trim().replace(/[-\s]/g, ''),
@@ -846,6 +865,20 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
             </>
           )}
 
+          {duplicate && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex gap-3 items-start">
+              <span className="text-xl flex-shrink-0">📚</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-amber-800 text-sm">Libro già in libreria</p>
+                <p className="text-amber-700 text-xs mt-0.5 truncate">
+                  {duplicate.titolo || `ISBN ${duplicate.isbn}`}
+                </p>
+                <Link href={`/libro/${duplicate.id}`} className="text-xs text-brand-500 hover:underline font-medium mt-1 inline-block">
+                  Apri la scheda →
+                </Link>
+              </div>
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">{error}</div>
           )}

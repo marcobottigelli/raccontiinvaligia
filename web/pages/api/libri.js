@@ -9,7 +9,17 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     // GET /api/libri?filter=in_lettura&search=eco
     // GET /api/libri?id=uuid  → singolo libro
-    const { id, filter, search, limit = 500 } = req.query
+    const { id, filter, search, limit = 500, isbn_exact } = req.query
+
+    // GET /api/libri?isbn_exact=978... → controlla se ISBN esiste già
+    if (isbn_exact) {
+      const { data } = await supabase
+        .from('libri')
+        .select('id,titolo,isbn')
+        .eq('isbn', isbn_exact.replace(/[-\s]/g, ''))
+        .maybeSingle()
+      return res.status(200).json(data || null)
+    }
 
     if (id) {
       const { data, error } = await supabase

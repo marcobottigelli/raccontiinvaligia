@@ -401,7 +401,7 @@ export default function DettaglioLibro() {
           <button
             type="button"
             onClick={handleDelete}
-            className="text-sm text-red-500 hover:text-red-700 transition-colors"
+            className="text-sm text-red-500 hover:text-red-700 transition-colors px-3 py-2.5 -ml-3 rounded-lg hover:bg-red-50 min-h-[44px] flex items-center"
           >
             Elimina libro
           </button>
