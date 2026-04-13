@@ -98,6 +98,291 @@ function ColonneLibreria() {
   )
 }
 
+// ─── Gestione editori ─────────────────────────────────────────────────────────
+function GestisciEditori() {
+  const [open, setOpen]           = useState(false)
+  const [editori, setEditori]     = useState([])  // { nome, count }[]
+  const [loading, setLoading]     = useState(false)
+  const [search, setSearch]       = useState('')
+  const [editingNome, setEditingNome] = useState(null)  // nome in editing
+  const [editVal, setEditVal]     = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [selected, setSelected]   = useState(new Set())  // nomi selezionati per merge
+  const [mergeTarget, setMergeTarget] = useState('')
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/editori')
+      if (res.ok) setEditori(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleOpen() {
+    if (!open) load()
+    setOpen(o => !o)
+    setSearch(''); setEditingNome(null); setSelected(new Set()); setMergeTarget('')
+  }
+
+  function startEdit(nome) {
+    setEditingNome(nome)
+    setEditVal(nome)
+  }
+
+  function cancelEdit() {
+    setEditingNome(null)
+    setEditVal('')
+  }
+
+  async function saveRename(vecchio, nuovo) {
+    if (!nuovo.trim() || nuovo.trim() === vecchio) { cancelEdit(); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/editori', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vecchio_nome: vecchio, nuovo_nome: nuovo.trim() }),
+      })
+      if (res.ok) {
+        setEditori(prev => {
+          const existing = prev.find(e => e.nome === nuovo.trim())
+          const old      = prev.find(e => e.nome === vecchio)
+          if (existing) {
+            // Fondi: aggiorna count del nome esistente, rimuovi il vecchio
+            return prev
+              .map(e => e.nome === nuovo.trim() ? { ...e, count: e.count + old.count } : e)
+              .filter(e => e.nome !== vecchio)
+              .sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome, 'it'))
+          }
+          return prev
+            .map(e => e.nome === vecchio ? { ...e, nome: nuovo.trim() } : e)
+            .sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome, 'it'))
+        })
+      }
+    } finally {
+      setSaving(false)
+      cancelEdit()
+    }
+  }
+
+  async function handleMerge() {
+    const target = mergeTarget.trim()
+    if (!target || selected.size < 2) return
+    setSaving(true)
+    try {
+      const nomiDaUnire = [...selected].filter(n => n !== target)
+      for (const vecchio of nomiDaUnire) {
+        await fetch('/api/editori', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vecchio_nome: vecchio, nuovo_nome: target }),
+        })
+      }
+      setEditori(prev => {
+        let result = [...prev]
+        const totalCount = [...selected].reduce((sum, n) => {
+          const e = prev.find(x => x.nome === n)
+          return sum + (e?.count || 0)
+        }, 0)
+        // Rimuovi tutti i selezionati, aggiungi/aggiorna il target
+        result = result.filter(e => !selected.has(e.nome))
+        const existing = result.find(e => e.nome === target)
+        if (existing) {
+          result = result.map(e => e.nome === target ? { ...e, count: e.count + totalCount } : e)
+        } else {
+          result.push({ nome: target, count: totalCount })
+        }
+        return result.sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome, 'it'))
+      })
+      setSelected(new Set())
+      setMergeTarget('')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function toggleSelect(nome) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(nome) ? next.delete(nome) : next.add(nome)
+      return next
+    })
+  }
+
+  const filtered = editori.filter(e =>
+    !search || e.nome.toLowerCase().includes(search.toLowerCase())
+  )
+
+  // Quando si selezionano 2+, prepopola il nome canonico con quello più frequente tra i selezionati
+  const selectedList  = editori.filter(e => selected.has(e.nome))
+  const mostFrequent  = selectedList.sort((a, b) => b.count - a.count)[0]?.nome || ''
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl mb-8 overflow-hidden">
+      {/* Header collassabile */}
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors text-left"
+      >
+        <div>
+          <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Gestisci editori</p>
+          <p className="text-xs text-gray-400 mt-0.5">Normalizza e unifica i nomi degli editori a database</p>
+        </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none"
+          viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
+          className={`text-gray-400 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100 px-6 pb-6 pt-4">
+          {loading ? (
+            <div className="text-sm text-gray-400 animate-pulse py-4 text-center">Caricamento editori…</div>
+          ) : (
+            <>
+              {/* Ricerca */}
+              <input
+                type="text"
+                placeholder="Cerca editore…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-3"
+              />
+
+              {/* Barra merge */}
+              {selected.size >= 2 && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 mb-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-indigo-700 flex-shrink-0">
+                    {selected.size} selezionati → Unisci in:
+                  </span>
+                  <input
+                    type="text"
+                    value={mergeTarget || mostFrequent}
+                    onChange={e => setMergeTarget(e.target.value)}
+                    placeholder="Nome canonico…"
+                    className="flex-1 min-w-[140px] border border-indigo-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  />
+                  <button
+                    onClick={handleMerge}
+                    disabled={saving || !(mergeTarget.trim() || mostFrequent)}
+                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                  >
+                    {saving ? '…' : 'Unisci'}
+                  </button>
+                  <button
+                    onClick={() => { setSelected(new Set()); setMergeTarget('') }}
+                    className="text-indigo-400 hover:text-indigo-600 text-xs flex-shrink-0"
+                  >
+                    ✕ Annulla
+                  </button>
+                </div>
+              )}
+
+              {/* Lista editori */}
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+                {filtered.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">Nessun editore trovato.</p>
+                ) : filtered.map(({ nome, count }) => (
+                  <div
+                    key={nome}
+                    className={`flex items-center gap-3 px-3 py-2.5 transition-colors
+                      ${selected.has(nome) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                  >
+                    {/* Checkbox selezione */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSelect(nome)}
+                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center"
+                    >
+                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors
+                        ${selected.has(nome) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 bg-white'}`}>
+                        {selected.has(nome) && (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                    </button>
+
+                    {/* Nome — inline edit */}
+                    {editingNome === nome ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveRename(nome, editVal)
+                          if (e.key === 'Escape') cancelEdit()
+                        }}
+                        className="flex-1 border border-brand-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(nome)}
+                        className="flex-1 text-left text-sm text-gray-800 hover:text-brand-600 transition-colors truncate"
+                        title="Clicca per rinominare"
+                      >
+                        {nome}
+                      </button>
+                    )}
+
+                    {/* Count badge */}
+                    <span className="flex-shrink-0 text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">
+                      {count}
+                    </span>
+
+                    {/* Azioni inline edit */}
+                    {editingNome === nome ? (
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => saveRename(nome, editVal)}
+                          disabled={saving}
+                          className="px-3 py-1 bg-brand-500 text-white rounded-lg text-xs font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
+                        >
+                          {saving ? '…' : '✓'}
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(nome)}
+                        className="flex-shrink-0 p-1.5 text-gray-300 hover:text-brand-500 transition-colors"
+                        title="Rinomina"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-gray-400 mt-3">
+                {editori.length} editori unici · Clicca un nome per rinominarlo · Seleziona 2+ per unirli
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
@@ -175,6 +460,9 @@ export default function Settings() {
 
       {/* COLONNE LIBRERIA */}
       <ColonneLibreria />
+
+      {/* GESTIONE EDITORI */}
+      <GestisciEditori />
 
       {/* FORM aggiunta / modifica */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
