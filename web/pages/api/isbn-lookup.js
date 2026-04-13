@@ -1,7 +1,5 @@
 // api/isbn-lookup.js — Vercel Function
-// Proxy per ISBN lookup — aggira CORS e prova più fonti in sequenza:
-// 1. Google Books API (nessuna chiave, ~1000 req/day gratuiti)
-// 2. Open Library Books API (completamente gratuito, nessuna chiave)
+// ISBN lookup con fetch parallelo Google Books + Open Library per massima velocità e copertura.
 // Body: { isbn }
 
 export default async function handler(req, res) {
@@ -13,183 +11,161 @@ export default async function handler(req, res) {
   const { isbn } = req.body
   if (!isbn) return res.status(400).json({ error: 'isbn mancante' })
 
-  // Normalizza ISBN (rimuovi trattini e spazi)
   const cleanIsbn = isbn.replace(/[-\s]/g, '')
+  const TIMEOUT = 6000
 
-  // Helper: Open Library Books API — restituisce publisher affidabile
-  async function fetchOLPublisher() {
+  // ── Fetch Google Books + Open Library in parallelo ──────────────────────────
+  const gbUrl = process.env.GOOGLE_BOOKS_API_KEY
+    ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}&key=${process.env.GOOGLE_BOOKS_API_KEY}`
+    : `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`
+
+  const olBooksUrl =
+    `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`
+
+  const [gbSettled, olSettled] = await Promise.allSettled([
+    fetch(gbUrl,      { headers: { 'User-Agent': 'RaccontiInValigia/1.0' }, signal: AbortSignal.timeout(TIMEOUT) }),
+    fetch(olBooksUrl, { headers: { 'User-Agent': 'RaccontiInValigia/1.0' }, signal: AbortSignal.timeout(TIMEOUT) }),
+  ])
+
+  // Deserializza le risposte
+  let gbData    = null
+  let olBook    = null   // oggetto singolo libro da OL Books API
+
+  if (gbSettled.status === 'fulfilled' && gbSettled.value.ok) {
+    try { gbData = await gbSettled.value.json() } catch (_) {}
+  }
+
+  if (olSettled.status === 'fulfilled' && olSettled.value.ok) {
     try {
-      const r = await fetch(
-        `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`,
-        { headers: { 'User-Agent': 'RaccontiInValigia/1.0' }, signal: AbortSignal.timeout(4000) }
+      const olRaw = await olSettled.value.json()
+      olBook = olRaw[`ISBN:${cleanIsbn}`] || null
+    } catch (_) {}
+  }
+
+  // ── 1. Fonte primaria: Google Books ──────────────────────────────────────────
+  if (gbData?.totalItems > 0 && gbData.items?.[0]?.volumeInfo) {
+    const v = gbData.items[0].volumeInfo
+
+    // Copertina: prendi la più grande disponibile
+    let copertina = null
+    if (v.imageLinks) {
+      copertina = v.imageLinks.large
+        || v.imageLinks.medium
+        || v.imageLinks.thumbnail
+        || null
+      if (copertina) {
+        copertina = copertina
+          .replace('&edge=curl', '')
+          .replace(/^http:\/\//, 'https://')
+      }
+    }
+
+    const anno = v.publishedDate
+      ? parseInt(v.publishedDate.substring(0, 4)) || null
+      : null
+
+    // Publisher: GB spesso manca per edizioni italiane → supplementa da OL Books API
+    // olBook.publishers è [{name: "Mondadori"}, ...] secondo la spec OL /api/books jscmd=data
+    const casaEditrice = v.publisher
+      || olBook?.publishers?.[0]?.name
+      || null
+
+    return res.json({
+      source:             'google-books',
+      titolo:             v.title              || null,
+      autore:             v.authors            || [],
+      casa_editrice:      casaEditrice,
+      anno_pubblicazione: anno,
+      descrizione:        v.description        || null,
+      copertina,
+      genere:             [],   // categorie BISAC di GB spesso sbagliate per libri italiani
+      lingua_originale:   v.language           || null,
+      pagine:             v.pageCount          || null,
+    })
+  }
+
+  // ── 2. Fallback: Open Library Books API ──────────────────────────────────────
+  if (olBook?.title) {
+    const autori = (olBook.authors || []).map(a => a.name).filter(Boolean)
+    const casaEditrice = olBook.publishers?.[0]?.name || null
+    const anno = olBook.publish_date
+      ? parseInt(String(olBook.publish_date).match(/\d{4}/)?.[0]) || null
+      : null
+
+    // Copertina OL
+    let copertina = null
+    try {
+      const coverRes = await fetch(
+        `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg?default=false`,
+        { method: 'HEAD', signal: AbortSignal.timeout(3000) }
       )
-      if (!r.ok) return null
-      const data = await r.json()
-      const book = data[`ISBN:${cleanIsbn}`]
-      return book?.publishers?.[0]?.name || null
-    } catch (_) {
-      return null
-    }
+      if (coverRes.ok) copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
+    } catch (_) {}
+
+    return res.json({
+      source:             'open-library',
+      titolo:             olBook.title        || null,
+      autore:             autori,
+      casa_editrice:      casaEditrice,
+      anno_pubblicazione: anno,
+      descrizione:        null,
+      copertina,
+      genere:             [],
+      lingua_originale:   null,
+      pagine:             olBook.number_of_pages || null,
+    })
   }
 
-  // 1. Google Books API
-  try {
-    const apiKey = process.env.GOOGLE_BOOKS_API_KEY
-    const url = apiKey
-      ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}&key=${apiKey}`
-      : `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`
-
-    const r = await fetch(url, { headers: { 'User-Agent': 'RaccontiInValigia/1.0' } })
-    if (r.ok) {
-      const data = await r.json()
-      if (data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
-        const v = data.items[0].volumeInfo
-
-        // Copertina: prendi la più grande disponibile
-        let copertina = null
-        if (v.imageLinks) {
-          copertina = v.imageLinks.large
-            || v.imageLinks.medium
-            || v.imageLinks.thumbnail
-            || null
-          // zoom=0 su Google Books restituisce placeholder per libri senza preview digitale
-          // (comune per edizioni italiane). zoom=1 è la thumbnail reale che funziona per tutti.
-          if (copertina) {
-            copertina = copertina
-              .replace('&edge=curl', '')
-              .replace(/^http:\/\//, 'https://')
-          }
-        }
-
-        // Anno pubblicazione: prendi solo i 4 digit dell'anno
-        const anno = v.publishedDate
-          ? parseInt(v.publishedDate.substring(0, 4)) || null
-          : null
-
-        // Publisher: Google Books spesso non ce l'ha per edizioni italiane.
-        // Se manca, prova Open Library Books API che ha dati editoriali più completi.
-        const casaEditrice = v.publisher || await fetchOLPublisher()
-
-        return res.json({
-          source:             'google-books',
-          titolo:             v.title || null,
-          autore:             v.authors || [],
-          casa_editrice:      casaEditrice,
-          anno_pubblicazione: anno,
-          descrizione:        v.description || null,
-          copertina,
-          genere:             [],  // categorie BISAC di Google Books spesso sbagliate per libri italiani
-          lingua_originale:   v.language || null,
-          pagine:             v.pageCount || null,
-        })
-      }
-    }
-  } catch (e) {
-    console.error('[Google Books] errore:', e.message)
-  }
-
-  // 2. Open Library Books API (endpoint strutturato, publisher affidabile)
-  try {
-    const r = await fetch(
-      `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`,
-      { headers: { 'User-Agent': 'RaccontiInValigia/1.0' } }
-    )
-    if (r.ok) {
-      const data = await r.json()
-      const book = data[`ISBN:${cleanIsbn}`]
-      if (book?.title) {
-        const autori = (book.authors || []).map(a => a.name).filter(Boolean)
-        const casaEditrice = book.publishers?.[0]?.name || null
-        const anno = book.publish_date
-          ? parseInt(book.publish_date.match(/\d{4}/)?.[0]) || null
-          : null
-
-        // Copertina Open Library — verifica che esista davvero (?default=false → 404 se assente)
-        let copertina = null
-        try {
-          const coverRes = await fetch(
-            `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg?default=false`,
-            { method: 'HEAD', signal: AbortSignal.timeout(3000) }
-          )
-          if (coverRes.ok) {
-            copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
-          }
-        } catch (_) {}
-
-        return res.json({
-          source:             'open-library',
-          titolo:             book.title || null,
-          autore:             autori,
-          casa_editrice:      casaEditrice,
-          anno_pubblicazione: anno,
-          descrizione:        book.notes || null,
-          copertina,
-          genere:             [],
-          lingua_originale:   null,
-          pagine:             book.number_of_pages || null,
-        })
-      }
-    }
-  } catch (e) {
-    console.error('[Open Library Books API] errore:', e.message)
-  }
-
-  // 3. Open Library edition endpoint (ultimo fallback)
+  // ── 3. Ultimo fallback: endpoint edizione OL /isbn/{isbn}.json ────────────────
   try {
     const r = await fetch(
       `https://openlibrary.org/isbn/${cleanIsbn}.json`,
-      { headers: { 'User-Agent': 'RaccontiInValigia/1.0' } }
+      { headers: { 'User-Agent': 'RaccontiInValigia/1.0' }, signal: AbortSignal.timeout(5000) }
     )
     if (r.ok) {
       const data = await r.json()
       if (data.title) {
         // Risolve gli autori (array di { key: '/authors/OL123A' })
         let autori = []
-        if (data.authors && Array.isArray(data.authors)) {
-          const authorPromises = data.authors.slice(0, 3).map(async (a) => {
-            try {
-              const key = a.key || ''
-              const authorRes = await fetch(
-                `https://openlibrary.org${key}.json`,
-                { signal: AbortSignal.timeout(3000) }
-              )
-              if (authorRes.ok) {
-                const authorData = await authorRes.json()
-                return authorData.name || authorData.personal_name || null
-              }
-            } catch { }
-            return null
-          })
-          const resolved = await Promise.all(authorPromises)
+        if (Array.isArray(data.authors)) {
+          const resolved = await Promise.all(
+            data.authors.slice(0, 3).map(async (a) => {
+              try {
+                const ar = await fetch(
+                  `https://openlibrary.org${a.key}.json`,
+                  { signal: AbortSignal.timeout(3000) }
+                )
+                if (ar.ok) {
+                  const ad = await ar.json()
+                  return ad.name || ad.personal_name || null
+                }
+              } catch (_) {}
+              return null
+            })
+          )
           autori = resolved.filter(Boolean)
         }
 
-        // Copertina Open Library — verifica che esista davvero (?default=false → 404 se assente)
         let copertina = null
         try {
-          const coverRes = await fetch(
+          const cr = await fetch(
             `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg?default=false`,
             { method: 'HEAD', signal: AbortSignal.timeout(3000) }
           )
-          if (coverRes.ok) {
-            copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
-          }
+          if (cr.ok) copertina = `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-L.jpg`
         } catch (_) {}
 
-        // Anno pubblicazione
         let anno = null
         if (data.publish_date) {
-          const match = data.publish_date.match(/\d{4}/)
-          if (match) anno = parseInt(match[0])
+          const m = String(data.publish_date).match(/\d{4}/)
+          if (m) anno = parseInt(m[0])
         }
 
-        // Lingua
         let lingua = null
-        if (data.languages && data.languages[0]?.key) {
-          lingua = data.languages[0].key.split('/').pop() // es. 'ita'
+        if (data.languages?.[0]?.key) {
+          lingua = data.languages[0].key.split('/').pop()
         }
 
-        // Descrizione
         let descrizione = null
         if (data.description) {
           descrizione = typeof data.description === 'string'
@@ -199,20 +175,20 @@ export default async function handler(req, res) {
 
         return res.json({
           source:             'open-library',
-          titolo:             data.title || null,
+          titolo:             data.title              || null,
           autore:             autori,
-          casa_editrice:      data.publishers?.[0] || null,
+          casa_editrice:      data.publishers?.[0]   || null,
           anno_pubblicazione: anno,
           descrizione,
           copertina,
           genere:             [],
           lingua_originale:   lingua,
-          pagine:             data.number_of_pages || null,
+          pagine:             data.number_of_pages   || null,
         })
       }
     }
   } catch (e) {
-    console.error('[Open Library edition] errore:', e.message)
+    console.error('[OL edition] errore:', e.message)
   }
 
   return res.status(404).json({ error: 'not_found' })

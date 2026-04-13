@@ -504,21 +504,14 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     }
   }
 
-  async function handleBarcodeDetected(code) {
-    setScanning(false)
-    setIsbn(code)
-    setFound(null)
-    setDuplicate(null)
-    // Controlla se già in libreria
-    const isDup = await checkDuplicate(code)
-    if (isDup) return
-    // Avvia lookup automaticamente dopo lo scan
+  // Logica di lookup condivisa tra scan automatico e pulsante CERCA
+  async function doLookup(isbnCode) {
     setLookupLoading(true); setError(null)
     try {
       const res = await fetch('/api/isbn-lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isbn: code.trim() }),
+        body: JSON.stringify({ isbn: isbnCode.trim() }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -549,43 +542,20 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     }
   }
 
-  async function handleLookup() {
+  async function handleBarcodeDetected(code) {
+    setScanning(false)
+    setIsbn(code)
+    setFound(null)
+    setDuplicate(null)
+    const isDup = await checkDuplicate(code)
+    if (isDup) return
+    await doLookup(code)
+  }
+
+  function handleLookup() {
     if (!isbn.trim()) return
-    setLookupLoading(true); setError(null); setFound(null)
-    try {
-      const res = await fetch('/api/isbn-lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isbn: isbn.trim() }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setFound(data)
-        setForm({
-          titolo:             data.titolo || '',
-          autore:             (data.autore || []).join(', '),
-          casa_editrice:      data.casa_editrice || '',
-          anno_pubblicazione: data.anno_pubblicazione || '',
-          descrizione:        data.descrizione || '',
-          copertina:          data.copertina || '',
-          genere:             (data.genere || []).join(', '),
-          lingua_originale:   data.lingua_originale || '',
-          pagine:             data.pagine || '',
-          stato_lettura:      'letto',
-          note_personali:     '',
-          voto:               null,
-        })
-      } else if (res.status === 404) {
-        setFound({ source: 'not_found' })
-        // Form vuota, dati manuali
-      } else {
-        setError(data.error || 'Errore nel lookup')
-      }
-    } catch (e) {
-      setError('Errore di rete: ' + e.message)
-    } finally {
-      setLookupLoading(false)
-    }
+    setFound(null)
+    doLookup(isbn)
   }
 
   async function handleSave(keepOpen = false) {
@@ -699,6 +669,14 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
               <p className="text-green-600 text-xs mt-1">✓ Dati trovati via {found.source === 'google-books' ? 'Google Books' : 'Open Library'} — puoi modificarli prima di salvare.</p>
             )}
           </div>
+
+          {/* Stato di caricamento visibile dopo lo scan (found ancora null) */}
+          {lookupLoading && found === null && (
+            <div className="flex items-center gap-3 py-6 justify-center text-gray-500 text-sm">
+              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              Ricerca libro in corso...
+            </div>
+          )}
 
           {(found !== null) && (
             <>
