@@ -1013,7 +1013,7 @@ const FILTERS_STATO = [
   { key: 'all',            label: 'Tutti' },
   { key: 'da_leggere',    label: 'Da leggere' },
   { key: 'letto',         label: 'Letti' },
-  { key: 'anno_corrente', label: `Quest'anno` },
+  { key: 'anno_corrente', label: `${new Date().getFullYear()}` },
 ]
 const FILTERS_MANCANZE = [
   { key: 'dati_mancanti',   label: 'Dati mancanti' },
