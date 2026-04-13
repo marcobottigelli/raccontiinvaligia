@@ -123,13 +123,16 @@ function CoverPickerSheet({ onFile, onUrl, onClose, isbn }) {
               <button onClick={async () => {
                 setSearchMode(true); setSearching(true); setFoundCover(null); setSearchErr(false)
                 try {
-                  const r = await fetch('/api/cover-search', {
+                  const r = await fetch('/api/isbn-lookup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isbn }),
                   })
-                  if (r.ok) { const d = await r.json(); setFoundCover(d) }
-                  else setSearchErr(true)
+                  if (r.ok) {
+                    const d = await r.json()
+                    if (d.copertina) setFoundCover({ url: d.copertina, source: d.source })
+                    else setSearchErr(true)
+                  } else setSearchErr(true)
                 } catch (_) { setSearchErr(true) }
                 finally { setSearching(false) }
               }}
