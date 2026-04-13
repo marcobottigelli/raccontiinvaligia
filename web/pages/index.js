@@ -146,7 +146,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <Link href={`/libri?filter=anno_corrente`}>
                   <StatCard
-                    label={`Letti nel ${annoCorrente}`}
+                    label="Letti"
                     value={lettiAnno}
                     color="green"
                     sub="Clicca per vedere la lista"

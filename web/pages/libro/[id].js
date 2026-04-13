@@ -472,17 +472,18 @@ export default function DettaglioLibro() {
               />
             </div>
 
-            {/* Voto personale + Anno lettura */}
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-28 flex-shrink-0">Voto personale</p>
-                <StarPicker value={form?.voto} onChange={v => setField('voto', v)} />
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-28 flex-shrink-0">Anno lettura</p>
-                <YearPicker value={form?.anno_lettura} onChange={v => setField('anno_lettura', v)} />
-              </div>
-            </div>
+          </div>
+        </div>
+
+        {/* Voto personale + Anno lettura — full width, sotto la copertina */}
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center gap-4">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-32 flex-shrink-0">Voto personale</p>
+            <StarPicker value={form?.voto} onChange={v => setField('voto', v)} />
+          </div>
+          <div className="flex items-center gap-4">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-32 flex-shrink-0">Anno lettura</p>
+            <YearPicker value={form?.anno_lettura} onChange={v => setField('anno_lettura', v)} />
           </div>
         </div>
 
