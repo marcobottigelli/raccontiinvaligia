@@ -98,6 +98,34 @@ function BarcodeScanner({ onDetected, onClose }) {
   )
 }
 
+// ─── Checkbox con touch area estesa (mobile) ─────────────────────────────────
+function CheckboxBtn({ checked, onChange, onClick, indeterminate }) {
+  return (
+    <button
+      type="button"
+      onClick={e => { if (onClick) onClick(e); onChange() }}
+      className="flex-shrink-0 w-10 h-10 flex items-center justify-center -mx-1"
+      aria-label={checked ? 'Deseleziona' : 'Seleziona'}
+    >
+      <span className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+        ${checked
+          ? 'bg-brand-500 border-brand-500'
+          : indeterminate
+            ? 'bg-brand-200 border-brand-400'
+            : 'border-gray-300 bg-white'}`}
+      >
+        {(checked || indeterminate) && (
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+            {indeterminate && !checked
+              ? <path strokeLinecap="round" d="M5 12h14" />
+              : <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />}
+          </svg>
+        )}
+      </span>
+    </button>
+  )
+}
+
 // ─── Year picker ──────────────────────────────────────────────────────────────
 function YearPicker({ value, onChange }) {
   const y = new Date().getFullYear()
@@ -1079,6 +1107,27 @@ export default function Libri() {
     }
   }
 
+  async function bulkSetAnno(year) {
+    const ids = [...selected]
+    if (!ids.length) return
+    setBulkLoading(true)
+    try {
+      await Promise.all(ids.map(id =>
+        fetch('/api/libri', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, anno_lettura: year }),
+        })
+      ))
+      setLibri(prev => prev.map(l => selected.has(l.id) ? { ...l, anno_lettura: year } : l))
+      setSelected(new Set())
+    } catch (e) {
+      alert('Errore: ' + e.message)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   function handleSaved(newLibro) {
     setLibri(prev => [newLibro, ...prev])
   }
@@ -1156,18 +1205,31 @@ export default function Libri() {
 
       {/* BULK ACTIONS */}
       {selected.size > 0 && (
-        <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 mb-4 flex items-center gap-3 text-sm">
-          <span className="text-brand-700 font-medium">{selected.size} selezionati</span>
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-brand-700 font-semibold flex-shrink-0">{selected.size} selezionati</span>
           <button
             onClick={bulkSegnaLetti}
             disabled={bulkLoading}
-            className="px-4 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors text-xs"
           >
-            ✓ Segna come letti
+            ✓ Segna letti
           </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xs text-gray-500">Anno:</span>
+            {[new Date().getFullYear(), new Date().getFullYear() - 1].map(yr => (
+              <button
+                key={yr}
+                onClick={() => bulkSetAnno(yr)}
+                disabled={bulkLoading}
+                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {yr}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setSelected(new Set())}
-            className="ml-auto text-gray-400 hover:text-gray-600"
+            className="ml-auto text-gray-400 hover:text-gray-600 text-xs flex-shrink-0"
           >
             ✕ Deseleziona
           </button>
@@ -1181,9 +1243,12 @@ export default function Libri() {
       {/* ── MOBILE: card list (default) o scroll table (extra cols) ─── */}
       <div className="sm:hidden bg-white rounded-xl border border-gray-200 overflow-hidden">
         {/* Header row */}
-        <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <input type="checkbox" checked={selected.size === libri.length && libri.length > 0}
-            onChange={toggleSelectAll} className="rounded flex-shrink-0" />
+        <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <CheckboxBtn
+            checked={selected.size === libri.length && libri.length > 0}
+            indeterminate={selected.size > 0 && selected.size < libri.length}
+            onChange={toggleSelectAll}
+          />
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{libri.length} libri</span>
           {useScrollMobile && (
             <span className="ml-auto text-xs text-amber-600 flex items-center gap-1">
@@ -1234,8 +1299,8 @@ export default function Libri() {
                   ...groupLibri.map(libro => (
                     <tr key={libro.id} onClick={() => setSelectedBook(libro)}
                       className={`border-b border-gray-100 cursor-pointer active:bg-gray-50 ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
-                      <td className="p-2" onClick={e => e.stopPropagation()}>
-                        <input type="checkbox" checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)} className="rounded" />
+                      <td className="p-1" onClick={e => e.stopPropagation()}>
+                        <CheckboxBtn checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)} />
                       </td>
                       <td className="p-2">
                         {libro.copertina
@@ -1268,9 +1333,12 @@ export default function Libri() {
             ),
             ...groupLibri.map(libro => (
               <div key={libro.id}
-                className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 active:bg-gray-50 transition-colors ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
-                <input type="checkbox" checked={selected.has(libro.id)} onChange={() => toggleSelect(libro.id)}
-                  className="rounded flex-shrink-0" onClick={e => e.stopPropagation()} />
+                className={`flex items-center gap-2 pl-2 pr-4 py-2 border-b border-gray-100 active:bg-gray-50 transition-colors ${selected.has(libro.id) ? 'bg-brand-50' : ''}`}>
+                <CheckboxBtn
+                  checked={selected.has(libro.id)}
+                  onChange={() => toggleSelect(libro.id)}
+                  onClick={e => e.stopPropagation()}
+                />
                 <button type="button" onClick={() => setSelectedBook(libro)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                   {libro.copertina
                     ? <img src={libro.copertina} alt={libro.titolo || libro.isbn} className="w-10 h-14 object-cover rounded border border-gray-200 flex-shrink-0" onError={e => { e.target.src = 'https://placehold.co/40x56?text=?' }} />
