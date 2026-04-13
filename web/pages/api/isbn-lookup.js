@@ -70,6 +70,12 @@ export default async function handler(req, res) {
       || olBook?.publishers?.[0]?.name
       || null
 
+    // Genere: usa il primo risultato di Google Books, togliendo il sottogenere dopo "/"
+    // es. "Fiction / Literary" → "Fiction", "Juvenile Fiction / Adventure" → "Juvenile Fiction"
+    const genere = v.categories?.length
+      ? [v.categories[0].split('/')[0].trim()]
+      : []
+
     return res.json({
       source:             'google-books',
       titolo:             v.title              || null,
@@ -78,7 +84,7 @@ export default async function handler(req, res) {
       anno_pubblicazione: anno,
       descrizione:        v.description        || null,
       copertina,
-      genere:             [],   // categorie BISAC di GB spesso sbagliate per libri italiani
+      genere,
       lingua_originale:   v.language           || null,
       pagine:             v.pageCount          || null,
     })
