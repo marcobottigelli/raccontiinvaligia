@@ -1032,7 +1032,7 @@ export default function Libri() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [selectedBook, setSelectedBook] = useState(null)
   const [extraCols, setExtraCols]   = useState([])
-  const [groupBy, setGroupBy]       = useState('none') // 'none' | 'casa_editrice'
+  const [groupBy, setGroupBy]       = useState('casa_editrice') // 'none' | 'casa_editrice'
 
   // Carica preferenze colonne da localStorage
   useEffect(() => { setExtraCols(loadExtraCols()) }, [])
