@@ -50,11 +50,26 @@ export default async function handler(req, res) {
           ? parseInt(v.publishedDate.substring(0, 4)) || null
           : null
 
+        // Se Google Books non ha il publisher, prova Open Library come supplemento
+        let casaEditrice = v.publisher || null
+        if (!casaEditrice) {
+          try {
+            const olr = await fetch(
+              `https://openlibrary.org/isbn/${cleanIsbn}.json`,
+              { headers: { 'User-Agent': 'RaccontiInValigia/1.0' }, signal: AbortSignal.timeout(3000) }
+            )
+            if (olr.ok) {
+              const olData = await olr.json()
+              casaEditrice = olData.publishers?.[0] || null
+            }
+          } catch (_) {}
+        }
+
         return res.json({
           source:             'google-books',
           titolo:             v.title || null,
           autore:             v.authors || [],
-          casa_editrice:      v.publisher || null,
+          casa_editrice:      casaEditrice,
           anno_pubblicazione: anno,
           descrizione:        v.description || null,
           copertina,

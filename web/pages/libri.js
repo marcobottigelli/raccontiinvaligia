@@ -440,6 +440,11 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     pagine: '', stato_lettura: 'letto', note_personali: '', voto: null,
   })
 
+  // Apri scanner automaticamente ogni volta che il modal viene aperto
+  useEffect(() => {
+    if (isOpen) setScanning(true)
+  }, [isOpen])
+
   async function loadPublishers() {
     if (publishers.length > 0) return
     try {
@@ -890,10 +895,16 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
             Annulla
           </button>
           {found !== null && (
-            <button onClick={handleSave} disabled={saveLoading}
-              className="px-6 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors">
-              {saveLoading ? 'Salvataggio...' : 'Salva libro'}
-            </button>
+            <>
+              <button onClick={() => { reset(); setScanning(true) }}
+                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                + Nuovo
+              </button>
+              <button onClick={handleSave} disabled={saveLoading}
+                className="px-6 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors">
+                {saveLoading ? 'Salvataggio...' : 'Salva libro'}
+              </button>
+            </>
           )}
         </div>
       </div>
