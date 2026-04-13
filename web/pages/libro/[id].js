@@ -236,7 +236,6 @@ export default function DettaglioLibro() {
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState(null)
-  const [success, setSuccess]       = useState(false)
   const [form, setForm]             = useState(null)
   const [showCoverPicker, setShowCoverPicker] = useState(false)
   const [coverUploading, setCoverUploading]   = useState(false)
@@ -334,9 +333,7 @@ export default function DettaglioLibro() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setLibro(data)
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
+      router.push('/libri')
     } catch (e) {
       setError(e.message)
     } finally {
@@ -393,7 +390,7 @@ export default function DettaglioLibro() {
         </span>
       </div>
 
-      <form onSubmit={handleSave} className="max-w-3xl space-y-8">
+      <form id="libro-form" onSubmit={handleSave} className="max-w-3xl space-y-8">
 
         {/* COPERTINA + HEADER */}
         <div className="flex gap-6 items-start">
@@ -598,11 +595,6 @@ export default function DettaglioLibro() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>
         )}
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-4 text-sm font-medium">
-            ✓ Modifiche salvate correttamente.
-          </div>
-        )}
 
         <div className="flex items-center justify-between pb-8">
           <button
@@ -612,7 +604,8 @@ export default function DettaglioLibro() {
           >
             Elimina libro
           </button>
-          <div className="flex gap-3">
+          {/* Bottone salva — solo desktop (su mobile c'è la barra fissa in basso) */}
+          <div className="hidden sm:flex gap-3">
             <Link href="/libri"
               className="px-5 py-2.5 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               Annulla
@@ -627,6 +620,18 @@ export default function DettaglioLibro() {
           </div>
         </div>
       </form>
+
+      {/* Barra salva fissa in basso — mobile only, sopra la bottom nav */}
+      <div className="sm:hidden fixed bottom-16 inset-x-0 z-30 px-4 pb-2 pt-2 bg-white border-t border-gray-200">
+        <button
+          form="libro-form"
+          type="submit"
+          disabled={saving}
+          className="w-full py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Salvataggio...' : 'Salva modifiche'}
+        </button>
+      </div>
 
       {showCoverPicker && (
         <CoverPickerSheet
