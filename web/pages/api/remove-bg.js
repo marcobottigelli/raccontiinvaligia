@@ -168,24 +168,21 @@ export default async function handler(req, res) {
         })
         if (rbRes.ok) {
           workingBuffer = Buffer.from(await rbRes.arrayBuffer())
-          console.log('[remove-bg] Remove.bg OK')
+          // 3. Deskew solo quando il bg è stato rimosso (sfondo bianco garantito)
+          try { workingBuffer = await deskew(workingBuffer) } catch (_) {}
         } else {
           const errText = await rbRes.text().catch(() => '')
           console.error('[remove-bg] Remove.bg non-OK:', rbRes.status, errText)
-          workingBuffer = await floodFillRemoveBg(workingBuffer)
+          // Senza bg removal funzionante, carica la foto così com'è
         }
       } catch (e) {
-        console.error('[remove-bg] Remove.bg fallback:', e.message)
-        workingBuffer = await floodFillRemoveBg(workingBuffer)
+        console.error('[remove-bg] Remove.bg errore:', e.message)
       }
-    } else {
-      // 2b. Nessuna API key → flood-fill gratuito
-      console.log('[remove-bg] Uso flood-fill (nessuna API key Remove.bg)')
-      workingBuffer = await floodFillRemoveBg(workingBuffer)
     }
-
-    // 3. Deskew (solo per foto da camera, dopo il bg removal)
-    try { workingBuffer = await deskew(workingBuffer) } catch (_) {}
+    // Senza chiave Remove.bg: nessuna rimozione sfondo.
+    // Il flood-fill da bordi è troppo aggressivo sulle copertine (distrugge
+    // elementi che toccano i bordi o hanno colori simili allo sfondo).
+    // L'auto-rotate EXIF già corregge l'orientamento — la foto viene caricata as-is.
   }
 
   // 4. Trim bordi bianchi + JPEG finale
