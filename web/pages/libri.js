@@ -1205,7 +1205,7 @@ export default function Libri() {
 
       {/* BULK ACTIONS */}
       {selected.size > 0 && (
-        <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2 text-sm">
+        <div className="sticky top-14 z-10 bg-brand-50 border border-brand-200 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2 text-sm shadow-md">
           <span className="text-brand-700 font-semibold flex-shrink-0">{selected.size} selezionati</span>
           <button
             onClick={bulkSegnaLetti}
