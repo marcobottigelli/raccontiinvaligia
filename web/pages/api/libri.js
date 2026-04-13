@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
     let query = supabase
       .from('libri')
-      .select('id,isbn,titolo,autore,casa_editrice,anno_pubblicazione,copertina,genere,lingua_originale,pagine,stato_lettura,voto,data_source,wordpress_status,note_personali,created_at')
+      .select('id,isbn,titolo,autore,casa_editrice,anno_pubblicazione,copertina,genere,lingua_originale,pagine,stato_lettura,voto,anno_lettura,data_source,wordpress_status,note_personali,created_at')
       .order('created_at', { ascending: false })
       .limit(parseInt(limit))
 
@@ -43,6 +43,7 @@ export default async function handler(req, res) {
     if (filter === 'letto')         query = query.eq('stato_lettura', 'letto')
     if (filter === 'dati_mancanti') query = query.eq('data_source', 'pending')
     if (filter === 'senza_copertina') query = query.is('copertina', null)
+    if (filter === 'anno_corrente')   query = query.eq('anno_lettura', new Date().getFullYear())
 
     // Ricerca testuale su titolo e ISBN (autore è array, ricerca lato client)
     if (search) {

@@ -155,6 +155,28 @@ function CoverPickerSheet({ onFile, onUrl, onClose, isbn }) {
   )
 }
 
+// ─── Year picker ─────────────────────────────────────────────────────────────
+function YearPicker({ value, onChange }) {
+  const y = new Date().getFullYear()
+  return (
+    <div className="flex gap-2">
+      {[y, y - 1].map(yr => (
+        <button
+          key={yr}
+          type="button"
+          onClick={() => onChange(yr === value ? null : yr)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+            ${value === yr
+              ? 'bg-green-600 text-white border-green-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+        >
+          {yr}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Stato lettura toggle ─────────────────────────────────────────────────────
 function StatoToggle({ value, onChange }) {
   const options = [
@@ -261,6 +283,7 @@ export default function DettaglioLibro() {
           stato_lettura:      data.stato_lettura || 'da_leggere',
           note_personali:     data.note_personali || '',
           voto:               data.voto || null,
+          anno_lettura:       data.anno_lettura || null,
           data_source:        data.data_source || 'pending',
         })
       } catch (e) {
@@ -323,6 +346,7 @@ export default function DettaglioLibro() {
         stato_lettura:      form.stato_lettura,
         note_personali:     form.note_personali || null,
         voto:               form.voto || null,
+        anno_lettura:       form.anno_lettura || null,
         data_source:        form.data_source,
       }
       const res = await fetch('/api/libri', {
@@ -448,10 +472,16 @@ export default function DettaglioLibro() {
               />
             </div>
 
-            {/* Voto personale */}
-            <div className="mt-4">
-              <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Voto personale</p>
-              <StarPicker value={form?.voto} onChange={v => setField('voto', v)} />
+            {/* Voto personale + Anno lettura */}
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-28 flex-shrink-0">Voto personale</p>
+                <StarPicker value={form?.voto} onChange={v => setField('voto', v)} />
+              </div>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide w-28 flex-shrink-0">Anno lettura</p>
+                <YearPicker value={form?.anno_lettura} onChange={v => setField('anno_lettura', v)} />
+              </div>
             </div>
           </div>
         </div>

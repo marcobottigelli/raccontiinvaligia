@@ -98,6 +98,28 @@ function BarcodeScanner({ onDetected, onClose }) {
   )
 }
 
+// ─── Year picker ──────────────────────────────────────────────────────────────
+function YearPicker({ value, onChange }) {
+  const y = new Date().getFullYear()
+  return (
+    <div className="flex gap-2">
+      {[y, y - 1].map(yr => (
+        <button
+          key={yr}
+          type="button"
+          onClick={() => onChange(yr === value ? null : yr)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+            ${value === yr
+              ? 'bg-green-600 text-white border-green-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+        >
+          {yr}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Star picker ──────────────────────────────────────────────────────────────
 function StarPicker({ value, onChange }) {
   const [hovered, setHovered] = useState(null)
@@ -323,11 +345,15 @@ function BookDetailSheet({ libro, onClose }) {
 }
 
 // ─── Cover picker sheet ────────────────────────────────────────────────────────
-function CoverPickerSheet({ onFile, onUrl, onClose }) {
+function CoverPickerSheet({ onFile, onUrl, onClose, isbn }) {
   const cameraRef   = useRef(null)
   const galleryRef  = useRef(null)
-  const [urlMode, setUrlMode] = useState(false)
-  const [urlVal,  setUrlVal]  = useState('')
+  const [urlMode,    setUrlMode]    = useState(false)
+  const [urlVal,     setUrlVal]     = useState('')
+  const [searchMode, setSearchMode] = useState(false)
+  const [searching,  setSearching]  = useState(false)
+  const [foundCover, setFoundCover] = useState(null)  // { url, source }
+  const [searchErr,  setSearchErr]  = useState(false)
   const waitingRef  = useRef(false)
 
   // iOS fix: when user returns from native camera/gallery without selecting,
@@ -380,8 +406,37 @@ function CoverPickerSheet({ onFile, onUrl, onClose }) {
               </button>
             </div>
           </div>
+        ) : searchMode ? (
+          <div className="space-y-3">
+            {searching && (
+              <div className="flex items-center justify-center gap-2 py-6 text-gray-500 text-sm">
+                <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                Ricerca copertina...
+              </div>
+            )}
+            {!searching && foundCover && (
+              <div className="flex flex-col items-center gap-3">
+                <img src={foundCover.url} alt="Copertina trovata"
+                  className="h-40 object-contain rounded-lg border border-gray-200 shadow-sm"
+                  onError={() => { setFoundCover(null); setSearchErr(true) }}
+                />
+                <p className="text-xs text-gray-400">via {foundCover.source === 'google-books' ? 'Google Books' : 'Open Library'}</p>
+                <button onClick={() => { onUrl(foundCover.url); onClose() }}
+                  className="w-full py-2 text-sm text-white bg-brand-500 rounded-lg hover:bg-brand-600">
+                  Usa questa copertina
+                </button>
+              </div>
+            )}
+            {!searching && searchErr && (
+              <p className="text-center text-sm text-amber-600 py-4">Nessuna copertina trovata online per questo ISBN.</p>
+            )}
+            <button onClick={() => { setSearchMode(false); setFoundCover(null); setSearchErr(false) }}
+              className="w-full py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200">
+              Indietro
+            </button>
+          </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {/* Fotocamera */}
             <button onClick={() => openPicker(cameraRef)}
               className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
@@ -407,6 +462,28 @@ function CoverPickerSheet({ onFile, onUrl, onClose }) {
               </svg>
               <span className="text-xs text-gray-600 font-medium">URL</span>
             </button>
+            {/* Cerca online */}
+            {isbn && (
+              <button onClick={async () => {
+                setSearchMode(true); setSearching(true); setFoundCover(null); setSearchErr(false)
+                try {
+                  const r = await fetch('/api/cover-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isbn }),
+                  })
+                  if (r.ok) { const d = await r.json(); setFoundCover(d) }
+                  else setSearchErr(true)
+                } catch (_) { setSearchErr(true) }
+                finally { setSearching(false) }
+              }}
+                className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" className="text-brand-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <span className="text-xs text-gray-600 font-medium">Cerca online</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -437,7 +514,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
   const [form, setForm]           = useState({
     titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
     descrizione: '', copertina: '', genere: '', lingua_originale: '',
-    pagine: '', stato_lettura: 'letto', note_personali: '', voto: null,
+    pagine: '', stato_lettura: 'letto', note_personali: '', voto: null, anno_lettura: null,
   })
 
   // Apri scanner automaticamente ogni volta che il modal viene aperto
@@ -471,7 +548,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     setShowCoverPicker(false)
     setForm({ titolo: '', autore: '', casa_editrice: '', anno_pubblicazione: '',
       descrizione: '', copertina: '', genere: '', lingua_originale: '',
-      pagine: '', stato_lettura: 'letto', note_personali: '', voto: null })
+      pagine: '', stato_lettura: 'letto', note_personali: '', voto: null, anno_lettura: null })
   }
 
   // Carica immagine (camera o galleria), rimuove bg se camera, poi aggiorna form
@@ -529,6 +606,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
           stato_lettura:      'letto',
           note_personali:     '',
           voto:               null,
+          anno_lettura:       null,
         })
       } else if (res.status === 404) {
         setFound({ source: 'not_found' })
@@ -579,6 +657,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
         stato_lettura:      form.stato_lettura,
         note_personali:     form.note_personali || null,
         voto:               form.voto || null,
+        anno_lettura:       form.anno_lettura || null,
         data_source:        found && found.source !== 'not_found' ? 'api' : 'manual',
       }
       const res = await fetch('/api/libri', {
@@ -823,10 +902,16 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
                 </div>
               </div>
 
-              {/* Voto personale */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Voto personale</label>
-                <StarPicker value={form.voto} onChange={v => setForm(f => ({ ...f, voto: v }))} />
+              {/* Voto personale + Anno lettura */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Voto personale</label>
+                  <StarPicker value={form.voto} onChange={v => setForm(f => ({ ...f, voto: v }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Anno lettura</label>
+                  <YearPicker value={form.anno_lettura} onChange={v => setForm(f => ({ ...f, anno_lettura: v }))} />
+                </div>
               </div>
 
               {/* Descrizione */}
@@ -901,6 +986,7 @@ const FILTERS = [
   { key: 'da_leggere',     label: 'Da leggere' },
   { key: 'in_lettura',     label: 'In lettura' },
   { key: 'letto',          label: 'Letti' },
+  { key: 'anno_corrente',  label: `Quest'anno` },
   { key: 'dati_mancanti',  label: 'Dati mancanti' },
   { key: 'senza_copertina', label: 'Senza copertina' },
 ]

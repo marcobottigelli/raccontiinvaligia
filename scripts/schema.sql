@@ -90,6 +90,15 @@ FROM libri;
 -- ALTER TABLE libri ENABLE ROW LEVEL SECURITY;
 
 -- ─────────────────────────────────────────────────────────────
+-- MIGRAZIONE: aggiungi colonne voto e anno_lettura (se non presenti)
+-- Esegui nell'SQL Editor di Supabase se la tabella esiste già:
+--
+-- ALTER TABLE libri ADD COLUMN IF NOT EXISTS voto SMALLINT CHECK (voto BETWEEN 1 AND 5);
+-- ALTER TABLE libri ADD COLUMN IF NOT EXISTS anno_lettura SMALLINT;
+-- CREATE INDEX IF NOT EXISTS idx_libri_anno_lettura ON libri(anno_lettura);
+-- ─────────────────────────────────────────────────────────────
+
+-- ─────────────────────────────────────────────────────────────
 -- Storage bucket da creare manualmente in Supabase:
 --   Nome: copertine
 --   Tipo: Public (per URL pubbliche stabili)

@@ -40,9 +40,11 @@ function ProgressBar({ value, total, color = '#a90707' }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [stats, setStats]     = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [stats, setStats]         = useState(null)
+  const [lettiAnno, setLettiAnno] = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+  const annoCorrente = new Date().getFullYear()
 
   useEffect(() => {
     async function fetchStats() {
@@ -56,7 +58,7 @@ export default function Dashboard() {
         try {
           const { data: libri } = await supabase
             .from('libri')
-            .select('stato_lettura,data_source,copertina,wordpress_status')
+            .select('stato_lettura,data_source,copertina,wordpress_status,anno_lettura')
           if (libri) {
             const s = {
               totale:                libri.length,
@@ -74,6 +76,7 @@ export default function Dashboard() {
               ).length,
             }
             setStats(s)
+            setLettiAnno(libri.filter(l => l.anno_lettura === annoCorrente).length)
           }
         } catch (e2) {
           setError('Impossibile caricare i dati. Controlla le credenziali Supabase in web/.env.local')
@@ -82,8 +85,20 @@ export default function Dashboard() {
         setLoading(false)
       }
     }
+
+    async function fetchLettiAnno() {
+      try {
+        const { data } = await supabase
+          .from('libri')
+          .select('id')
+          .eq('anno_lettura', annoCorrente)
+        setLettiAnno(data?.length ?? 0)
+      } catch (_) {}
+    }
+
     fetchStats()
-  }, [])
+    fetchLettiAnno()
+  }, [annoCorrente])
 
   return (
     <Layout>
@@ -123,6 +138,23 @@ export default function Dashboard() {
               <StatCard label="Da leggere"    value={stats.da_leggere}  color="amber" />
             </div>
           </section>
+
+          {/* ANNO CORRENTE */}
+          {lettiAnno !== null && (
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">Nel {annoCorrente}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Link href={`/libri?filter=anno_corrente`}>
+                  <StatCard
+                    label={`Letti nel ${annoCorrente}`}
+                    value={lettiAnno}
+                    color="green"
+                    sub="Clicca per vedere la lista"
+                  />
+                </Link>
+              </div>
+            </section>
+          )}
 
           {/* COPERTINE */}
           <section className="mb-8">
