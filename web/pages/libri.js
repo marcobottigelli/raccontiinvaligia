@@ -1009,15 +1009,19 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
 }
 
 // ─── Filtri ─────────────────────────────────────────────────────────────────────
-const FILTERS = [
-  { key: 'all',             label: 'Tutti' },
-  { key: 'da_leggere',     label: 'Da leggere' },
-  { key: 'in_lettura',     label: 'In lettura' },
-  { key: 'letto',          label: 'Letti' },
-  { key: 'anno_corrente',  label: `Quest'anno` },
-  { key: 'dati_mancanti',  label: 'Dati mancanti' },
+const FILTERS_STATO = [
+  { key: 'all',            label: 'Tutti' },
+  { key: 'da_leggere',    label: 'Da leggere' },
+  { key: 'in_lettura',    label: 'In lettura' },
+  { key: 'letto',         label: 'Letti' },
+  { key: 'anno_corrente', label: `Quest'anno` },
+]
+const FILTERS_MANCANZE = [
+  { key: 'dati_mancanti',   label: 'Dati mancanti' },
   { key: 'senza_copertina', label: 'Senza copertina' },
 ]
+// per compatibilità con il sync da URL
+const FILTERS = [...FILTERS_STATO, ...FILTERS_MANCANZE]
 
 // ─── Pagina principale ────────────────────────────────────────────────────────
 export default function Libri() {
@@ -1033,6 +1037,7 @@ export default function Libri() {
   const [selectedBook, setSelectedBook] = useState(null)
   const [extraCols, setExtraCols]   = useState([])
   const [groupBy, setGroupBy]       = useState('casa_editrice') // 'none' | 'casa_editrice'
+  const [sortBy, setSortBy]         = useState('recenti') // 'recenti' | 'az'
 
   // Carica preferenze colonne da localStorage
   useEffect(() => { setExtraCols(loadExtraCols()) }, [])
@@ -1079,10 +1084,10 @@ export default function Libri() {
   }
 
   function toggleSelectAll() {
-    if (selected.size === libri.length) {
+    if (selected.size === libriSorted.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(libri.map(l => l.id)))
+      setSelected(new Set(libriSorted.map(l => l.id)))
     }
   }
 
@@ -1132,17 +1137,26 @@ export default function Libri() {
     setLibri(prev => [newLibro, ...prev])
   }
 
+  // Ordinamento
+  const libriSorted = [...libri].sort((a, b) => {
+    if (sortBy === 'az') {
+      return (a.titolo || '').localeCompare(b.titolo || '', 'it')
+    }
+    // 'recenti': mantieni ordine API (created_at desc, già ordinato)
+    return 0
+  })
+
   // Raggruppamento
   const groups = groupBy === 'casa_editrice'
     ? Object.entries(
-        libri.reduce((acc, l) => {
+        libriSorted.reduce((acc, l) => {
           const k = l.casa_editrice || '— Senza editore'
           if (!acc[k]) acc[k] = []
           acc[k].push(l)
           return acc
         }, {})
       ).sort(([a], [b]) => a.localeCompare(b, 'it'))
-    : [['', libri]]
+    : [['', libriSorted]]
 
   // Colonne extra attive
   const activeCols = OPTIONAL_COLS.filter(c => extraCols.includes(c.key))
@@ -1154,7 +1168,7 @@ export default function Libri() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Libreria</h1>
-          <p className="text-gray-500 mt-1">{libri.length} libri mostrati</p>
+          <p className="text-gray-500 mt-1">{libriSorted.length} libri mostrati</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -1165,21 +1179,25 @@ export default function Libri() {
       </div>
 
       {/* SEARCH + FILTERS */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            placeholder="Cerca per ISBN, titolo o autore..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
+        {/* Ricerca */}
+        <input
+          type="text"
+          placeholder="Cerca per ISBN, titolo o autore..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+
+        {/* Riga: Filtri stato */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Filtri</span>
           <div className="flex flex-wrap gap-1">
-            {FILTERS.map(f => (
+            {FILTERS_STATO.map(f => (
               <button
                 key={f.key}
                 onClick={() => { setFilter(f.key); setSelected(new Set()) }}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                   ${filter === f.key
                     ? 'bg-brand-500 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -1187,16 +1205,51 @@ export default function Libri() {
                 {f.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Riga: Mancanze */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Lacune</span>
+          <div className="flex flex-wrap gap-1">
+            {FILTERS_MANCANZE.map(f => (
+              <button
+                key={f.key}
+                onClick={() => { setFilter(f.key); setSelected(new Set()) }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                  ${filter === f.key
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Riga: Ordina */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Ordina</span>
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setSortBy('recenti')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                ${sortBy === 'recenti' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              Recenti
+            </button>
+            <button
+              onClick={() => setSortBy('az')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                ${sortBy === 'az' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              A → Z
+            </button>
             <button
               onClick={() => setGroupBy(g => g === 'casa_editrice' ? 'none' : 'casa_editrice')}
-              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
-                ${groupBy === 'casa_editrice'
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
+                ${groupBy === 'casa_editrice' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
               Per editore
             </button>
           </div>
@@ -1245,11 +1298,11 @@ export default function Libri() {
         {/* Header row */}
         <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-200">
           <CheckboxBtn
-            checked={selected.size === libri.length && libri.length > 0}
-            indeterminate={selected.size > 0 && selected.size < libri.length}
+            checked={selected.size === libriSorted.length && libriSorted.length > 0}
+            indeterminate={selected.size > 0 && selected.size < libriSorted.length}
             onChange={toggleSelectAll}
           />
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{libri.length} libri</span>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{libriSorted.length} libri</span>
           {useScrollMobile && (
             <span className="ml-auto text-xs text-amber-600 flex items-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
@@ -1269,7 +1322,7 @@ export default function Libri() {
               </div>
             </div>
           ))
-        ) : libri.length === 0 ? (
+        ) : libriSorted.length === 0 ? (
           <div className="p-10 text-center text-gray-400">
             <p className="text-4xl mb-3">📚</p>
             <p className="text-sm">Nessun libro trovato.</p>
@@ -1375,7 +1428,7 @@ export default function Libri() {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="p-3 w-10">
-                <input type="checkbox" checked={selected.size === libri.length && libri.length > 0}
+                <input type="checkbox" checked={selected.size === libriSorted.length && libriSorted.length > 0}
                   onChange={toggleSelectAll} className="rounded" />
               </th>
               <th className="p-3 text-left font-medium text-gray-600 w-16">Copertina</th>
@@ -1399,7 +1452,7 @@ export default function Libri() {
                   ))}
                 </tr>
               ))
-            ) : libri.length === 0 ? (
+            ) : libriSorted.length === 0 ? (
               <tr>
                 <td colSpan={8 + activeCols.length} className="p-12 text-center text-gray-400">
                   <p className="text-4xl mb-3">📚</p>
