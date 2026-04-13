@@ -183,7 +183,7 @@ function GestisciEditori() {
   }
 
   async function handleMerge() {
-    const target = mergeTarget.trim()
+    const target = (mergeTarget.trim() || mostFrequent).trim()
     if (!target || selected.size < 2) return
     setSaving(true)
     try {
