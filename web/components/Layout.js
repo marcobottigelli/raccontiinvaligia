@@ -116,16 +116,30 @@ export default function Layout({ children }) {
             <span className="text-xs font-medium">Dashboard</span>
           </Link>
 
-          {/* FAB + Aggiungi libro */}
-          <Link
-            href="/libri?add=1"
-            className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center shadow-lg -mt-5 text-white hover:bg-brand-600 active:scale-95 transition-all"
-            title="Aggiungi libro"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          </Link>
+          {/* FAB — salva se in edit libro, altrimenti aggiungi */}
+          {path.startsWith('/libro/') ? (
+            <button
+              onClick={() => document.getElementById('libro-form')?.requestSubmit()}
+              className="w-14 h-14 bg-green-600 rounded-full flex items-center justify-center shadow-lg -mt-5 text-white hover:bg-green-700 active:scale-95 transition-all"
+              title="Salva modifiche"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            </button>
+          ) : (
+            <Link
+              href="/libri?add=1"
+              className="w-14 h-14 bg-brand-500 rounded-full flex items-center justify-center shadow-lg -mt-5 text-white hover:bg-brand-600 active:scale-95 transition-all"
+              title="Aggiungi libro"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </Link>
+          )}
 
           {/* Libreria */}
           <Link

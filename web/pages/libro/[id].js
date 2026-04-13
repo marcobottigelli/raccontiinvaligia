@@ -274,7 +274,6 @@ export default function DettaglioLibro() {
 
   function setField(key, value) {
     setForm(f => ({ ...f, [key]: value }))
-    setSuccess(false)
   }
 
   async function handleImageFile(file, isCamera) {
@@ -308,7 +307,7 @@ export default function DettaglioLibro() {
 
   async function handleSave(e) {
     e.preventDefault()
-    setSaving(true); setError(null); setSuccess(false)
+    setSaving(true); setError(null)
     try {
       const payload = {
         id,
@@ -604,34 +603,21 @@ export default function DettaglioLibro() {
           >
             Elimina libro
           </button>
-          {/* Bottone salva — solo desktop (su mobile c'è la barra fissa in basso) */}
-          <div className="hidden sm:flex gap-3">
+          <div className="flex items-center gap-3">
             <Link href="/libri"
-              className="px-5 py-2.5 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+              className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2.5 rounded-lg hover:bg-gray-100 min-h-[44px] flex items-center transition-colors">
               Annulla
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              className="hidden sm:block px-6 py-2.5 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Salvataggio...' : 'Salva modifiche'}
             </button>
           </div>
         </div>
       </form>
-
-      {/* Barra salva fissa in basso — mobile only, sopra la bottom nav */}
-      <div className="sm:hidden fixed bottom-16 inset-x-0 z-30 px-4 pb-2 pt-2 bg-white border-t border-gray-200">
-        <button
-          form="libro-form"
-          type="submit"
-          disabled={saving}
-          className="w-full py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Salvataggio...' : 'Salva modifiche'}
-        </button>
-      </div>
 
       {showCoverPicker && (
         <CoverPickerSheet
