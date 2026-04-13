@@ -1012,7 +1012,6 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
 const FILTERS_STATO = [
   { key: 'all',            label: 'Tutti' },
   { key: 'da_leggere',    label: 'Da leggere' },
-  { key: 'in_lettura',    label: 'In lettura' },
   { key: 'letto',         label: 'Letti' },
   { key: 'anno_corrente', label: `Quest'anno` },
 ]
@@ -1036,8 +1035,7 @@ export default function Libri() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [selectedBook, setSelectedBook] = useState(null)
   const [extraCols, setExtraCols]   = useState([])
-  const [groupBy, setGroupBy]       = useState('casa_editrice') // 'none' | 'casa_editrice'
-  const [sortBy, setSortBy]         = useState('recenti') // 'recenti' | 'az'
+  const [sortBy, setSortBy]         = useState('editore') // 'recenti' | 'az' | 'editore'
 
   // Carica preferenze colonne da localStorage
   useEffect(() => { setExtraCols(loadExtraCols()) }, [])
@@ -1137,17 +1135,16 @@ export default function Libri() {
     setLibri(prev => [newLibro, ...prev])
   }
 
-  // Ordinamento
+  // Ordinamento + raggruppamento — controllati da sortBy
   const libriSorted = [...libri].sort((a, b) => {
-    if (sortBy === 'az') {
+    if (sortBy === 'az' || sortBy === 'editore') {
       return (a.titolo || '').localeCompare(b.titolo || '', 'it')
     }
-    // 'recenti': mantieni ordine API (created_at desc, già ordinato)
+    // 'recenti': mantieni ordine API (created_at desc, già ordinato dal server)
     return 0
   })
 
-  // Raggruppamento
-  const groups = groupBy === 'casa_editrice'
+  const groups = sortBy === 'editore'
     ? Object.entries(
         libriSorted.reduce((acc, l) => {
           const k = l.casa_editrice || '— Senza editore'
@@ -1190,8 +1187,8 @@ export default function Libri() {
         />
 
         {/* Riga: Filtri stato */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Filtri</span>
+        <div className="flex items-start gap-3">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1.5 w-14 flex-shrink-0">Filtri</span>
           <div className="flex flex-wrap gap-1">
             {FILTERS_STATO.map(f => (
               <button
@@ -1208,9 +1205,9 @@ export default function Libri() {
           </div>
         </div>
 
-        {/* Riga: Mancanze */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Lacune</span>
+        {/* Riga: Lacune */}
+        <div className="flex items-start gap-3">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1.5 w-14 flex-shrink-0">Lacune</span>
           <div className="flex flex-wrap gap-1">
             {FILTERS_MANCANZE.map(f => (
               <button
@@ -1228,30 +1225,23 @@ export default function Libri() {
         </div>
 
         {/* Riga: Ordina */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-16 flex-shrink-0">Ordina</span>
+        <div className="flex items-start gap-3">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1.5 w-14 flex-shrink-0">Ordina</span>
           <div className="flex flex-wrap gap-1">
-            <button
-              onClick={() => setSortBy('recenti')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                ${sortBy === 'recenti' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              Recenti
-            </button>
-            <button
-              onClick={() => setSortBy('az')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                ${sortBy === 'az' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              A → Z
-            </button>
-            <button
-              onClick={() => setGroupBy(g => g === 'casa_editrice' ? 'none' : 'casa_editrice')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
-                ${groupBy === 'casa_editrice' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              Per editore
-            </button>
+            {[
+              { key: 'recenti', label: 'Recenti' },
+              { key: 'az',      label: 'A → Z' },
+              { key: 'editore', label: 'Per editore' },
+            ].map(s => (
+              <button
+                key={s.key}
+                onClick={() => setSortBy(s.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                  ${sortBy === s.key ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
