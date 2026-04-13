@@ -120,6 +120,21 @@ function GestisciEditori() {
     }
   }
 
+  async function trimAll() {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/editori?action=trim_all', { method: 'POST' })
+      if (res.ok) {
+        const { fixed } = await res.json()
+        await load()  // ricarica lista aggiornata
+        if (fixed === 0) alert('Nessuno spazio extra trovato — tutto già pulito.')
+        else alert(`✓ Corretti ${fixed} nome${fixed > 1 ? 'i' : ''} con spazi nascosti.`)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleOpen() {
     if (!open) load()
     setOpen(o => !o)
@@ -246,14 +261,25 @@ function GestisciEditori() {
             <div className="text-sm text-gray-400 animate-pulse py-4 text-center">Caricamento editori…</div>
           ) : (
             <>
-              {/* Ricerca */}
-              <input
-                type="text"
-                placeholder="Cerca editore…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-3"
-              />
+              {/* Ricerca + Pulisci spazi */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Cerca editore…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <button
+                  type="button"
+                  onClick={trimAll}
+                  disabled={saving}
+                  title="Rimuove spazi nascosti all'inizio e alla fine di tutti i nomi"
+                  className="flex-shrink-0 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  ✦ Pulisci spazi
+                </button>
+              </div>
 
               {/* Barra merge */}
               {selected.size >= 2 && (

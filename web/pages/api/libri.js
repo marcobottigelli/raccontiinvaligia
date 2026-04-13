@@ -72,6 +72,7 @@ export default async function handler(req, res) {
     // POST /api/libri — crea nuovo libro
     const { isbn, ...fields } = req.body
     if (!isbn) return res.status(400).json({ error: 'isbn obbligatorio' })
+    if (fields.casa_editrice) fields.casa_editrice = fields.casa_editrice.trim()
 
     const { data, error } = await supabase
       .from('libri')
@@ -87,6 +88,7 @@ export default async function handler(req, res) {
     // PATCH /api/libri — aggiorna libro esistente
     const { id, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'id obbligatorio' })
+    if (updates.casa_editrice) updates.casa_editrice = updates.casa_editrice.trim()
 
     const { data, error } = await supabase
       .from('libri')

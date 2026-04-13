@@ -29,6 +29,30 @@ export default async function handler(req, res) {
     return res.status(200).json(result)
   }
 
+  if (req.method === 'POST' && req.query.action === 'trim_all') {
+    // Recupera tutti i nomi distinti con spazi e li corregge
+    const { data, error } = await supabase
+      .from('libri')
+      .select('casa_editrice')
+      .not('casa_editrice', 'is', null)
+    if (error) return res.status(500).json({ error: error.message })
+
+    const dirty = [...new Set(
+      (data || [])
+        .map(r => r.casa_editrice)
+        .filter(n => n !== n.trim())
+    )]
+
+    for (const nome of dirty) {
+      await supabase
+        .from('libri')
+        .update({ casa_editrice: nome.trim() })
+        .eq('casa_editrice', nome)
+    }
+
+    return res.status(200).json({ fixed: dirty.length })
+  }
+
   if (req.method === 'PATCH') {
     // Rinomina tutti i libri con vecchio_nome → nuovo_nome
     const { vecchio_nome, nuovo_nome } = req.body
