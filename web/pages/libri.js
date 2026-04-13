@@ -588,7 +588,7 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(keepOpen = false) {
     if (!isbn.trim()) return
     setSaveLoading(true); setError(null); setDuplicate(null)
     // Controlla duplicato prima di salvare
@@ -620,7 +620,11 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
       if (res.ok) {
         onSaved(data)
         reset()
-        onClose()
+        if (keepOpen) {
+          setScanning(true)
+        } else {
+          onClose()
+        }
       } else {
         setError(data.error || 'Errore nel salvataggio')
       }
@@ -896,8 +900,8 @@ function AggiungiLibroModal({ isOpen, onClose, onSaved }) {
           </button>
           {found !== null && (
             <>
-              <button onClick={() => { reset(); setScanning(true) }}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              <button onClick={() => handleSave(true)} disabled={saveLoading}
+                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors">
                 + Nuovo
               </button>
               <button onClick={handleSave} disabled={saveLoading}
