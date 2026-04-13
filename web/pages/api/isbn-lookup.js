@@ -1,6 +1,6 @@
 // api/isbn-lookup.js — Vercel Function
 // ISBN lookup con fetch parallelo Google Books + Open Library per massima velocità e copertura.
-// Se il publisher non è nelle API bibliografiche, viene cercato via OpenAI (chiave da Supabase).
+// Genere (in italiano) e publisher mancante vengono recuperati via OpenAI in un'unica chiamata.
 // Body: { isbn }
 
 import { createClient } from '@supabase/supabase-js'
@@ -25,31 +25,40 @@ async function getOpenAIKey() {
   return cachedApiKey
 }
 
-// Chiede il publisher a GPT quando non trovato nelle API bibliografiche
-async function aiLookupPublisher(titolo, autori, isbn) {
+// Chiede a GPT casa_editrice (se mancante) e genere in italiano — una sola chiamata per entrambi.
+// Ritorna { casa_editrice: string|null, genere: string|null }
+async function aiLookupMeta(titolo, autori, isbn) {
   const apiKey = await getOpenAIKey()
-  if (!apiKey || !titolo) return null
+  if (!apiKey || !titolo) return { casa_editrice: null, genere: null }
   try {
     const autoreStr = Array.isArray(autori) ? autori.join(', ') : (autori || '')
-    const prompt = `Qual è la casa editrice italiana del libro "${titolo}"${autoreStr ? ` di ${autoreStr}` : ''} (ISBN ${isbn})? Rispondi SOLO con il nome della casa editrice, senza spiegazioni. Se non sei sicuro rispondi: UNKNOWN`
+    const prompt =
+      `Libro: "${titolo}"${autoreStr ? ` di ${autoreStr}` : ''} (ISBN ${isbn}).\n` +
+      `Rispondi SOLO con un oggetto JSON con questi due campi:\n` +
+      `- "casa_editrice": nome della casa editrice italiana (es. "Iperborea", "Mondadori", "Einaudi")\n` +
+      `- "genere": genere letterario in italiano (es. "Narrativa", "Romanzo", "Thriller", "Giallo", "Fantascienza", "Saggistica", "Poesia", "Fantasy", "Horror", "Biografia")\n` +
+      `Usa null per i campi di cui non sei sicuro. Nessun testo fuori dal JSON.`
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 20,
+        max_tokens: 60,
         temperature: 0,
+        response_format: { type: 'json_object' },
       }),
       signal: AbortSignal.timeout(8000),
     })
-    if (!r.ok) return null
+    if (!r.ok) return { casa_editrice: null, genere: null }
     const data = await r.json()
-    const answer = (data.choices?.[0]?.message?.content || '').trim()
-    if (!answer || /unknown/i.test(answer)) return null
-    return answer
+    const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}')
+    return {
+      casa_editrice: parsed.casa_editrice || null,
+      genere:        parsed.genere        || null,
+    }
   } catch (_) {
-    return null
+    return { casa_editrice: null, genere: null }
   }
 }
 
@@ -115,16 +124,11 @@ export default async function handler(req, res) {
       ? parseInt(v.publishedDate.substring(0, 4)) || null
       : null
 
-    // Publisher: GB spesso manca per edizioni italiane → supplementa da OL, poi da AI
-    const casaEditrice = v.publisher
-      || olBook?.publishers?.[0]?.name
-      || await aiLookupPublisher(v.title, v.authors, cleanIsbn)
-
-    // Genere: usa il primo risultato di Google Books, togliendo il sottogenere dopo "/"
-    // es. "Fiction / Literary" → "Fiction", "Juvenile Fiction / Adventure" → "Juvenile Fiction"
-    const genere = v.categories?.length
-      ? [v.categories[0].split('/')[0].trim()]
-      : []
+    // Publisher da API, poi AI come fallback. Genere sempre da AI (in italiano).
+    const apiPublisher = v.publisher || olBook?.publishers?.[0]?.name || null
+    const aiMeta = await aiLookupMeta(v.title, v.authors, cleanIsbn)
+    const casaEditrice = apiPublisher || aiMeta.casa_editrice
+    const genere = aiMeta.genere ? [aiMeta.genere] : []
 
     return res.json({
       source:             'google-books',
@@ -143,8 +147,9 @@ export default async function handler(req, res) {
   // ── 2. Fallback: Open Library Books API ──────────────────────────────────────
   if (olBook?.title) {
     const autori = (olBook.authors || []).map(a => a.name).filter(Boolean)
-    const casaEditrice = olBook.publishers?.[0]?.name
-      || await aiLookupPublisher(olBook.title, autori, cleanIsbn)
+    const apiPublisher = olBook.publishers?.[0]?.name || null
+    const aiMeta = await aiLookupMeta(olBook.title, autori, cleanIsbn)
+    const casaEditrice = apiPublisher || aiMeta.casa_editrice
     const anno = olBook.publish_date
       ? parseInt(String(olBook.publish_date).match(/\d{4}/)?.[0]) || null
       : null
@@ -167,7 +172,7 @@ export default async function handler(req, res) {
       anno_pubblicazione: anno,
       descrizione:        null,
       copertina,
-      genere:             [],
+      genere:             aiMeta.genere ? [aiMeta.genere] : [],
       lingua_originale:   null,
       pagine:             olBook.number_of_pages || null,
     })
@@ -230,15 +235,17 @@ export default async function handler(req, res) {
             : data.description.value || null
         }
 
+        const apiPublisher3 = data.publishers?.[0] || null
+        const aiMeta3 = await aiLookupMeta(data.title, autori, cleanIsbn)
         return res.json({
           source:             'open-library',
           titolo:             data.title              || null,
           autore:             autori,
-          casa_editrice:      data.publishers?.[0]   || null,
+          casa_editrice:      apiPublisher3 || aiMeta3.casa_editrice,
           anno_pubblicazione: anno,
           descrizione,
           copertina,
-          genere:             [],
+          genere:             aiMeta3.genere ? [aiMeta3.genere] : [],
           lingua_originale:   lingua,
           pagine:             data.number_of_pages   || null,
         })
