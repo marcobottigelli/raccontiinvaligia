@@ -232,12 +232,14 @@ D3 — Tema o epoca?
 3. Nessuna preferenza
 4. Altro: scrivi tu...
 
-D4 — Poni questa domanda esattamente così (1 sola opzione numerata + testo intro):
+D4 — OBBLIGATORIA, sempre, qualunque sia il ramo seguito. Non saltarla mai.
+Poni questa domanda esattamente così (2 opzioni numerate + testo intro):
 "C'è qualche ulteriore informazione che vuoi aggiungere alla ricerca? Ad esempio: un autore che ami o che non sopporti, un'ambientazione specifica, un libro simile a uno che ti è piaciuto molto…"
 1. No grazie, procedi
+2. Altro: scrivi qui i tuoi dettagli...
 
 Se l'utente clicca "No grazie, procedi" o scrive qualcosa di equivalente (niente, vai, procedi…): passa direttamente ai suggerimenti.
-Se l'utente scrive dettagli nel campo libero: usali per affinare la selezione, poi passa ai suggerimenti.
+Se l'utente scrive dettagli nel campo libero o clicca l'opzione 2: usali per affinare la selezione, poi passa ai suggerimenti.
 
 Flusso completo (branch paralleli da D2, non sequenziali):
 D1 → D2 → ┬─ [se Narrativa] ──────────────────────────────────────────── D3 → D4
@@ -245,7 +247,7 @@ D1 → D2 → ┬─ [se Narrativa] ──────────────�
            ├─ [se Saggistica] → D2d ────────────────────────────────────── D3 → D4
            ├─ [se Autobiografia] → D2c → [D2c_sub se musicale/sport/biz] → D3 → D4
            └─ [se Altro] ──────────────────────────────────────────────── D3 → D4
-Poni UNA domanda alla volta. NON saltare domande. NON dare suggerimenti prima di aver completato il flusso.
+Poni UNA domanda alla volta. NON saltare domande. D4 è l'ultima domanda SEMPRE — non dare suggerimenti prima di averla posta.
 
 ${REGOLA_AUTO_VERIFICA}
 
