@@ -34,28 +34,15 @@ export default async function handler(req, res) {
 
   // ── 2. Query Supabase in parallelo ──────────────────────────────────────────
   const [
-    { data: cinqueStelle },
-    { data: quattroStelle },
-    { data: tuttiLetti },
+    { data: tuttiLettiRaw },
     { data: daLeggereRaw },
     { data: statsRaw },
   ] = await Promise.all([
-    // 5★ — gusti primari con dettagli
+    // Tutti i libri letti — con anno, voto, genere per profilo gusti e risposte accurate
     supabase.from('libri')
-      .select('titolo, autore, casa_editrice, genere, anno_lettura')
+      .select('titolo, autore, casa_editrice, genere, anno_lettura, voto')
       .eq('stato_lettura', 'letto')
-      .eq('voto', 5),
-
-    // 4★ — gusti secondari (solo titolo/autore/genere)
-    supabase.from('libri')
-      .select('titolo, autore, genere')
-      .eq('stato_lettura', 'letto')
-      .eq('voto', 4),
-
-    // Tutti i libri letti — serve per escluderli dai suggerimenti
-    supabase.from('libri')
-      .select('titolo, autore')
-      .eq('stato_lettura', 'letto'),
+      .order('anno_lettura', { ascending: false }),
 
     // Da leggere — tutti, nessun limite
     supabase.from('libri')
@@ -66,6 +53,11 @@ export default async function handler(req, res) {
     supabase.from('libri')
       .select('stato_lettura, anno_lettura'),
   ])
+
+  // Derivati da tuttiLettiRaw
+  const tuttiLetti  = tuttiLettiRaw || []
+  const cinqueStelle = tuttiLetti.filter(l => l.voto === 5)
+  const quattroStelle = tuttiLetti.filter(l => l.voto === 4)
 
   // ── 3. Calcola statistiche ─────────────────────────────────────────────────
   const stats = statsRaw || []
@@ -105,8 +97,19 @@ export default async function handler(req, res) {
     return `"${l.titolo || '?'}" (${(l.autore || []).join(', ') || '?'})`
   }
 
-  // Titoli letti (per esclusione)
-  const titoliletti = (tuttiLetti || []).map(l => `"${l.titolo || '?'}"`)
+  // Lista completa letti, raggruppata per anno (più recenti prima) con voto
+  const stelle = n => '★'.repeat(n || 0) + '☆'.repeat(Math.max(0, 5 - (n || 0)))
+  const lettiPerAnnoMap = {}
+  for (const l of tuttiLetti) {
+    const anno = l.anno_lettura ? String(l.anno_lettura) : '?'
+    if (!lettiPerAnnoMap[anno]) lettiPerAnnoMap[anno] = []
+    const autore = (l.autore || []).join(', ') || '?'
+    lettiPerAnnoMap[anno].push(`"${l.titolo || '?'}" — ${autore} ${stelle(l.voto)}`)
+  }
+  const lettiPerAnnoStr = Object.keys(lettiPerAnnoMap)
+    .sort((a, b) => Number(b) - Number(a))
+    .map(anno => `${anno}:\n${lettiPerAnnoMap[anno].map(r => `  • ${r}`).join('\n')}`)
+    .join('\n')
 
   // ── 5. System prompt ───────────────────────────────────────────────────────
   const systemPrompt = `Sei l'assistente letterario personale di Cristina (raccontiinvaligia.it).
@@ -188,7 +191,7 @@ STRUTTURA RISPOSTA (seguila sempre):
    • "Titolo" — breve nota sul perché si adatta
 
 REGOLE AGGIUNTIVE:
-- Non suggerire MAI libri dalla lista "GIÀ LETTI"
+- Non suggerire MAI libri dalla lista "TUTTI I LIBRI LETTI"
 - Puoi suggerire libri dalla lista "DA LEGGERE" SOLO nella sezione finale, mai tra i primi suggerimenti
 - Usa la tua conoscenza dei libri: scegli titoli reali, esistenti, di qualità
 - Se il vincolo di destinazione è molto specifico e hai pochi titoli certi, meglio 2 ottimi che 4 mediocri
@@ -205,8 +208,8 @@ ${(cinqueStelle || []).map(fmt5).join('\n') || '(nessuno)'}
 ★★★★ LIBRI A 4 STELLE (gusti secondari):
 ${(quattroStelle || []).map(fmt4).join('\n') || '(nessuno)'}
 
-GIÀ LETTI — NON suggerire questi titoli:
-${titoliletti.join(', ') || '(nessuno)'}
+TUTTI I LIBRI LETTI — non suggerire MAI questi titoli; usali per rispondere a domande sulla libreria:
+${lettiPerAnnoStr || '(nessuno)'}
 
 DA LEGGERE — ${nDaLegg} titoli (menzionali solo nella sezione finale se pertinenti):
 ${(daLeggereRaw || []).map(fmtBase).join('\n') || '(lista vuota)'}`
