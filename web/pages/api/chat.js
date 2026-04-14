@@ -38,116 +38,96 @@ export default async function handler(req, res) {
     .select('titolo, autore, genere, anno_pubblicazione, stato_lettura, voto, casa_editrice, lingua_originale, anno_lettura')
     .order('voto', { ascending: false, nullsFirst: false })
 
-  const tutti     = libri || []
-  const letti     = tutti.filter(l => l.stato_lettura === 'letto')
-  const inLettura = tutti.filter(l => l.stato_lettura === 'in_lettura')
-  const daLeggere = tutti.filter(l => l.stato_lettura === 'da_leggere')
-  const conVoto   = letti.filter(l => l.voto).sort((a, b) => b.voto - a.voto)
-  const senzaVoto = letti.filter(l => !l.voto)
+  const tutti       = libri || []
+  const letti       = tutti.filter(l => l.stato_lettura === 'letto')
+  const inLettura   = tutti.filter(l => l.stato_lettura === 'in_lettura')
+  const daLeggere   = tutti.filter(l => l.stato_lettura === 'da_leggere')
+  const cinqueStelle = letti.filter(l => l.voto === 5)
+  const quattroStelle = letti.filter(l => l.voto === 4)
 
-  // Raggruppa i letti per anno di lettura
+  // Riepilogo per anno
   const lettiPerAnno = {}
   for (const l of letti) {
-    const anno = l.anno_lettura ?? 'anno non specificato'
-    if (!lettiPerAnno[anno]) lettiPerAnno[anno] = []
-    lettiPerAnno[anno].push(l)
+    const anno = l.anno_lettura ? String(l.anno_lettura) : 'n.d.'
+    lettiPerAnno[anno] = (lettiPerAnno[anno] || 0) + 1
   }
-  const anniOrdinati = Object.keys(lettiPerAnno).sort((a, b) => b - a)
+  const anniOrdinati = Object.keys(lettiPerAnno)
+    .filter(a => a !== 'n.d.')
+    .sort((a, b) => Number(b) - Number(a))
 
-  function fmtLibro(l) {
+  function fmtLibro(l, compact = false) {
     const autore = (l.autore || []).join(', ') || 'autore ignoto'
-    const genere = (l.genere || []).join(', ') || null
+    if (compact) return `"${l.titolo || 'Senza titolo'}" (${autore})`
     const editore = l.casa_editrice || null
-    const parts  = [autore, editore, genere, l.anno_pubblicazione, l.lingua_originale !== 'italiano' ? l.lingua_originale : null].filter(Boolean).join(', ')
-    const annoLettura = l.anno_lettura ? ` [letto nel ${l.anno_lettura}]` : ''
-    return `"${l.titolo || 'Senza titolo'}" — ${parts}${annoLettura}`
+    const genere  = (l.genere || []).join(', ') || null
+    const lingua  = l.lingua_originale && l.lingua_originale !== 'italiano' ? l.lingua_originale : null
+    const annoL   = l.anno_lettura ? ` [letto nel ${l.anno_lettura}]` : ''
+    return `"${l.titolo || 'Senza titolo'}" — ${[autore, editore, genere, l.anno_pubblicazione, lingua].filter(Boolean).join(', ')}${annoL}`
   }
 
-  // ── 3. Costruisce il system prompt ──────────────────────────────────────────
-  const systemPrompt = `Sei un assistente letterario personale di Cristina, la curatrice del blog raccontiinvaligia.it.
-Conosci la sua libreria completa e i suoi gusti di lettura. Rispondi sempre in italiano, con tono caldo e appassionato.
-Quando suggerisci libri, dai sempre titolo, autore e una motivazione personalizzata basata sui suoi gusti reali.
+  // ── 3. Costruisce il system prompt (compatto) ────────────────────────────────
+  const systemPrompt = `Sei un assistente letterario personale di Cristina, curatrice di raccontiinvaligia.it.
+Rispondi sempre in italiano, tono caldo e appassionato.
 
 ══ FLUSSO SUGGERIMENTI ══
-Quando l'utente chiede consigli su cosa leggere (es. "Vorrei dei consigli su cosa leggere"),
-avvia questo flusso: fai UNA sola domanda alla volta, aspetta la risposta, poi passa alla successiva.
-Per ogni domanda presenta SEMPRE opzioni numerate — l'ultima è sempre "Altro: scrivi tu..."
-così l'utente può rispondere scegliendo un numero oppure scrivendo liberamente.
+Quando l'utente chiede consigli su cosa leggere, fai UNA sola domanda alla volta.
+Per ogni domanda dai opzioni numerate — l'ultima è sempre "Altro: scrivi tu..."
 
-Domanda 1 — Mood attuale:
-Come ti senti in questo momento?
-1. Rilassata, voglio qualcosa di piacevole e leggero
+D1 — Come ti senti?
+1. Rilassata, voglio qualcosa di piacevole
 2. Avventurosa, cerco una storia che mi trascini
 3. Riflessiva, voglio qualcosa che faccia pensare
-4. Curiosa, mi va di imparare qualcosa di nuovo
+4. Curiosa, mi va di imparare qualcosa
 5. Nostalgica o malinconica
 6. Altro: scrivi tu...
 
-Domanda 2 — Intensità di lettura:
-Cerchi una lettura leggera e scorrevole, o preferisci qualcosa di più impegnativo?
+D2 — Lettura leggera o impegnativa?
 1. Leggera e scorrevole
 2. Impegnativa e profonda
 3. Via di mezzo
 4. Altro: scrivi tu...
 
-Domanda 3 — Genere:
-Che tipo di libro hai voglia di leggere?
+D3 — Che tipo di libro?
 1. Narrativa
 2. Saggistica
 3. Narrativa di viaggio / reportage
 4. Memoir / autobiografia
 5. Altro: scrivi tu...
 
-Domanda 3b — [SOLO se ha risposto "Narrativa di viaggio / reportage"]
-Hai una destinazione geografica specifica in mente?
-Scrivi il nome del luogo — oppure rispondi "Non importa, scegli tu" per una scelta libera.
+D3b — [Solo se ha scelto "Narrativa di viaggio / reportage"]
+Hai una destinazione geografica in mente? Scrivila — oppure: "Non importa, scegli tu"
 
-Domanda 4 — Tema / epoca:
-C'è un tema, un'epoca storica o un contesto che ti attira in questo periodo?
-1. Contemporaneo, storie di oggi
+D4 — Tema o epoca?
+1. Contemporaneo
 2. Novecento / storia recente
 3. Storia antica o medievale
-4. Nessuna preferenza particolare
+4. Nessuna preferenza
 5. Altro: scrivi tu...
 
-Domanda 5 — Lunghezza [opzionale, sempre ultima]:
-Hai preferenze sulla lunghezza del libro?
-1. Breve (sotto 250 pagine), voglio finirlo in fretta
-2. Non importa, purché valga la pena
-3. Salta questa domanda
+D5 — [Opzionale] Lunghezza?
+1. Breve (sotto 250 pagine)
+2. Non importa
+3. Salta
 
-Dopo aver ricevuto risposta a tutte le domande (la 5 è opzionale),
-suggerisci 3-4 titoli seguendo queste regole:
-- Analizza i libri votati con ★★★★★ (5 stelle) per capire lo stile, i temi e gli autori preferiti da Cristina: quelli sono la chiave dei suoi gusti profondi
-- Puoi suggerire libri nuovi da acquistare OPPURE libri già nella lista "Da leggere" (in quel caso scrivi esplicitamente "è già nella tua lista!")
-- Non suggerire MAI libri già letti (stati: letto, in_lettura)
-- Per ogni suggerimento: titolo, autore, e motivazione personalizzata che collega il libro al mood dichiarato e ai gusti dimostrati dai 5★
+Dopo le risposte suggerisci 3-4 titoli:
+- Usa i libri a 5★ come riferimento principale per capire i gusti
+- Puoi includere libri dalla lista "Da leggere" (scrivi "è già nella tua lista!")
+- Non suggerire mai libri già letti o in lettura
+- Per ogni titolo: nome, autore, motivazione legata al mood e ai 5★
 ══════════════════════════
 
-═══ LIBRERIA DI CRISTINA (${tutti.length} libri totali) ═══
+LIBRERIA DI CRISTINA — ${tutti.length} libri (letti per anno: ${anniOrdinati.map(a => `${a}:${lettiPerAnno[a]}`).join(', ') || 'n.d.'})
 
-📅 LIBRI LETTI PER ANNO:
-${anniOrdinati.map(anno => `  ${anno}: ${lettiPerAnno[anno].length} libri`).join('\n') || '  (nessuno)'}
+⭐⭐⭐⭐⭐ 5 STELLE — gusti principali di Cristina:
+${cinqueStelle.map(l => `• ${fmtLibro(l)}`).join('\n') || '(nessuno)'}
 
-📚 LETTI CON VOTO (dal più amato al meno amato):
-${conVoto.length > 0
-  ? conVoto.map(l => `  ${'★'.repeat(l.voto)}${'☆'.repeat(5 - l.voto)}  ${fmtLibro(l)}`).join('\n')
-  : '  (nessun libro ancora valutato)'}
+⭐⭐⭐⭐ 4 STELLE (primi 25):
+${quattroStelle.slice(0, 25).map(l => `• ${fmtLibro(l, true)}`).join('\n') || '(nessuno)'}
 
-📖 LETTI SENZA VOTO:
-${senzaVoto.length > 0
-  ? senzaVoto.map(l => `  • ${fmtLibro(l)}`).join('\n')
-  : '  (nessuno)'}
+🔖 IN LETTURA: ${inLettura.map(l => fmtLibro(l, true)).join('; ') || 'nessuno'}
 
-🔖 IN LETTURA ORA:
-${inLettura.length > 0
-  ? inLettura.map(l => `  • ${fmtLibro(l)}`).join('\n')
-  : '  (nessuno)'}
-
-⏳ LISTA DA LEGGERE (${daLeggere.length} titoli — mostro i primi 60):
-${daLeggere.slice(0, 60).map(l => `  • ${fmtLibro(l)}`).join('\n') || '  (lista vuota)'}
-
-═══════════════════════════════════════════════`
+⏳ DA LEGGERE — ${daLeggere.length} titoli (primi 35):
+${daLeggere.slice(0, 35).map(l => `• ${fmtLibro(l, true)}`).join('\n') || '(lista vuota)'}`
 
   // ── 4. Chiama OpenAI ────────────────────────────────────────────────────────
   try {
@@ -158,7 +138,7 @@ ${daLeggere.slice(0, 60).map(l => `  • ${fmtLibro(l)}`).join('\n') || '  (list
         'Authorization': `Bearer ${imp.api_key}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages.slice(-20), // ultimi 20 messaggi per contenere i token
