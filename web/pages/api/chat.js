@@ -1,8 +1,8 @@
 // api/chat.js — Chatbot AI con contesto libreria
 // Legge la chiave OpenAI da impostazioni (servizio = 'openai')
-// Costruisce un system prompt con i dati reali della libreria
+// Costruisce un system prompt minimale con solo i dati rilevanti
 
-export const config = { maxDuration: 60 } // Vercel timeout esteso a 60s
+export const config = { maxDuration: 60 }
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const { messages } = req.body
   if (!messages?.length) return res.status(400).json({ error: 'messages mancanti' })
 
-  // ── 1. Legge chiave OpenAI da impostazioni ──────────────────────────────────
+  // ── 1. Legge chiave OpenAI ──────────────────────────────────────────────────
   const { data: imp } = await supabase
     .from('impostazioni')
     .select('api_key')
@@ -32,54 +32,70 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 2. Carica la libreria da Supabase ───────────────────────────────────────
-  const { data: libri } = await supabase
-    .from('libri')
-    .select('titolo, autore, genere, anno_pubblicazione, stato_lettura, voto, casa_editrice, lingua_originale, anno_lettura')
-    .order('voto', { ascending: false, nullsFirst: false })
+  // ── 2. Query Supabase mirate in parallelo ───────────────────────────────────
+  const [{ data: cinqueStelle }, { data: daLeggereRaw }, { data: statsRaw }] = await Promise.all([
+    // Solo libri a 5★ — base per capire i gusti
+    supabase.from('libri')
+      .select('titolo, autore, casa_editrice, genere, anno_lettura')
+      .eq('stato_lettura', 'letto')
+      .eq('voto', 5),
 
-  const tutti       = libri || []
-  const letti       = tutti.filter(l => l.stato_lettura === 'letto')
-  const inLettura   = tutti.filter(l => l.stato_lettura === 'in_lettura')
-  const daLeggere   = tutti.filter(l => l.stato_lettura === 'da_leggere')
-  const cinqueStelle = letti.filter(l => l.voto === 5)
-  const quattroStelle = letti.filter(l => l.voto === 4)
+    // Da leggere — solo titolo e autore, max 25
+    supabase.from('libri')
+      .select('titolo, autore')
+      .eq('stato_lettura', 'da_leggere')
+      .limit(25),
 
-  // Riepilogo per anno
+    // Stats per riepilogo
+    supabase.from('libri')
+      .select('stato_lettura, anno_lettura'),
+  ])
+
+  // ── 3. Calcola statistiche ──────────────────────────────────────────────────
+  const stats = statsRaw || []
+  const totale    = stats.length
+  const nLetti    = stats.filter(l => l.stato_lettura === 'letto').length
+  const nLettura  = stats.filter(l => l.stato_lettura === 'in_lettura').length
+  const nDaLegg   = stats.filter(l => l.stato_lettura === 'da_leggere').length
+
   const lettiPerAnno = {}
-  for (const l of letti) {
-    const anno = l.anno_lettura ? String(l.anno_lettura) : 'n.d.'
-    lettiPerAnno[anno] = (lettiPerAnno[anno] || 0) + 1
+  for (const l of stats) {
+    if (l.stato_lettura === 'letto' && l.anno_lettura) {
+      const a = String(l.anno_lettura)
+      lettiPerAnno[a] = (lettiPerAnno[a] || 0) + 1
+    }
   }
-  const anniOrdinati = Object.keys(lettiPerAnno)
-    .filter(a => a !== 'n.d.')
+  const anniStr = Object.keys(lettiPerAnno)
     .sort((a, b) => Number(b) - Number(a))
+    .map(a => `${a}:${lettiPerAnno[a]}`)
+    .join(', ')
 
-  function fmtLibro(l, compact = false) {
-    const autore = (l.autore || []).join(', ') || 'autore ignoto'
-    if (compact) return `"${l.titolo || 'Senza titolo'}" (${autore})`
+  // ── 4. Formattazione libri ──────────────────────────────────────────────────
+  function fmt5(l) {
+    const autore  = (l.autore || []).join(', ') || '?'
     const editore = l.casa_editrice || null
     const genere  = (l.genere || []).join(', ') || null
-    const lingua  = l.lingua_originale && l.lingua_originale !== 'italiano' ? l.lingua_originale : null
-    const annoL   = l.anno_lettura ? ` [letto nel ${l.anno_lettura}]` : ''
-    return `"${l.titolo || 'Senza titolo'}" — ${[autore, editore, genere, l.anno_pubblicazione, lingua].filter(Boolean).join(', ')}${annoL}`
+    const annoL   = l.anno_lettura ? ` [${l.anno_lettura}]` : ''
+    return `"${l.titolo || '?'}" — ${[autore, editore, genere].filter(Boolean).join(', ')}${annoL}`
   }
 
-  // ── 3. Costruisce il system prompt (compatto) ────────────────────────────────
-  const systemPrompt = `Sei un assistente letterario personale di Cristina, curatrice di raccontiinvaligia.it.
-Rispondi sempre in italiano, tono caldo e appassionato.
+  function fmtDL(l) {
+    return `"${l.titolo || '?'}" (${(l.autore || []).join(', ') || '?'})`
+  }
+
+  // ── 5. System prompt compatto ───────────────────────────────────────────────
+  const systemPrompt = `Sei l'assistente letterario personale di Cristina (raccontiinvaligia.it).
+Rispondi in italiano, tono caldo e appassionato.
 
 ══ FLUSSO SUGGERIMENTI ══
 Quando l'utente chiede consigli su cosa leggere, fai UNA sola domanda alla volta.
-Per ogni domanda dai opzioni numerate — l'ultima è sempre "Altro: scrivi tu..."
+Per ogni domanda presenta opzioni numerate — l'ultima è sempre "Altro: scrivi tu..."
 
-D1 — Come ti senti?
+D1 — Come ti senti in questo momento?
 1. Rilassata, voglio qualcosa di piacevole
-2. Avventurosa, cerco una storia che mi trascini
-3. Riflessiva, voglio qualcosa che faccia pensare
-4. Curiosa, mi va di imparare qualcosa
-5. Nostalgica o malinconica
-6. Altro: scrivi tu...
+2. Avventurosa o curiosa, cerco ispirazione
+3. Riflessiva o nostalgica
+4. Altro: scrivi tu...
 
 D2 — Lettura leggera o impegnativa?
 1. Leggera e scorrevole
@@ -89,47 +105,41 @@ D2 — Lettura leggera o impegnativa?
 
 D3 — Che tipo di libro?
 1. Narrativa
-2. Saggistica
-3. Narrativa di viaggio / reportage
-4. Memoir / autobiografia
+2. Narrativa di viaggio / reportage
+3. Saggistica
+4. Autobiografia / memoir
 5. Altro: scrivi tu...
 
 D3b — [Solo se ha scelto "Narrativa di viaggio / reportage"]
-Hai una destinazione geografica in mente? Scrivila — oppure: "Non importa, scegli tu"
+Hai una destinazione geografica in mente? Scrivila — oppure rispondi: "Non importa, scegli tu"
 
 D4 — Tema o epoca?
 1. Contemporaneo
-2. Novecento / storia recente
-3. Storia antica o medievale
-4. Nessuna preferenza
-5. Altro: scrivi tu...
+2. Storico (qualsiasi epoca)
+3. Nessuna preferenza
+4. Altro: scrivi tu...
 
-D5 — [Opzionale] Lunghezza?
-1. Breve (sotto 250 pagine)
-2. Non importa
-3. Salta
+D5 — [Opzionale, sempre ultima] Preferenze sulla lunghezza?
+1. Preferisco qualcosa di breve (sotto 250 pagine)
+2. Salta, non è rilevante per me
 
 Dopo le risposte suggerisci 3-4 titoli:
-- Usa i libri a 5★ come riferimento principale per capire i gusti
-- Puoi includere libri dalla lista "Da leggere" (scrivi "è già nella tua lista!")
+- Basa i gusti SUI LIBRI A 5★ elencati sotto (stile, temi, autori, editori)
+- Puoi includere titoli dalla lista "Da leggere" (scrivi "è già nella tua lista!")
 - Non suggerire mai libri già letti o in lettura
 - Per ogni titolo: nome, autore, motivazione legata al mood e ai 5★
 ══════════════════════════
 
-LIBRERIA DI CRISTINA — ${tutti.length} libri (letti per anno: ${anniOrdinati.map(a => `${a}:${lettiPerAnno[a]}`).join(', ') || 'n.d.'})
+LIBRERIA — ${totale} libri | letti: ${nLetti} | in lettura: ${nLettura} | da leggere: ${nDaLegg}
+Letti per anno: ${anniStr || 'n.d.'}
 
-⭐⭐⭐⭐⭐ 5 STELLE — gusti principali di Cristina:
-${cinqueStelle.map(l => `• ${fmtLibro(l)}`).join('\n') || '(nessuno)'}
+5★ LIBRI DI CRISTINA — base per i suggerimenti:
+${(cinqueStelle || []).map(fmt5).join('\n') || '(nessuno)'}
 
-⭐⭐⭐⭐ 4 STELLE (primi 25):
-${quattroStelle.slice(0, 25).map(l => `• ${fmtLibro(l, true)}`).join('\n') || '(nessuno)'}
+DA LEGGERE — ${nDaLegg} titoli (primi 25):
+${(daLeggereRaw || []).map(fmtDL).join('\n') || '(lista vuota)'}`
 
-🔖 IN LETTURA: ${inLettura.map(l => fmtLibro(l, true)).join('; ') || 'nessuno'}
-
-⏳ DA LEGGERE — ${daLeggere.length} titoli (primi 35):
-${daLeggere.slice(0, 35).map(l => `• ${fmtLibro(l, true)}`).join('\n') || '(lista vuota)'}`
-
-  // ── 4. Chiama OpenAI ────────────────────────────────────────────────────────
+  // ── 6. Chiama OpenAI ────────────────────────────────────────────────────────
   try {
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -141,10 +151,10 @@ ${daLeggere.slice(0, 35).map(l => `• ${fmtLibro(l, true)}`).join('\n') || '(li
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages.slice(-20), // ultimi 20 messaggi per contenere i token
+          ...messages.slice(-10),
         ],
-        max_tokens: 1200,
-        temperature: 0.75,
+        max_tokens: 600,
+        temperature: 0.7,
       }),
     })
 
