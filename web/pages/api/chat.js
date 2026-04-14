@@ -270,15 +270,20 @@ Per ognuno usa esattamente questo formato:
   📖 [Una frase che descrive il libro: di cosa parla, ambientazione, tono]
   ✓ Perché te lo propongo: [collegamento specifico con le risposte date e/o con i libri a 5★]
 
-Dopo i suggerimenti principali, se nella lista "DA LEGGERE" ci sono titoli pertinenti, aggiungi:
+Dopo i suggerimenti principali, controlla la lista "DA LEGGERE" fornita sopra:
+- Se trovi titoli EFFETTIVAMENTE PRESENTI in quella lista che siano pertinenti alle preferenze espresse, aggiungi:
 ---
 📚 Hai già in libreria, da non dimenticare:
-• "Titolo" — breve nota sul perché si adatta
+• "Titolo esatto dalla lista" — breve nota sul perché si adatta
+- Se NON trovi nessun titolo pertinente nella lista DA LEGGERE, scrivi invece:
+---
+📚 Non ho trovato nulla di già disponibile in libreria che si adatti alle tue preferenze.
 
 REGOLE AGGIUNTIVE:
 - Non suggerire MAI libri dalla lista "TUTTI I LIBRI LETTI"
 - Usa SOLO il formato • bullet per i suggerimenti (mai liste numerate 1. 2. 3.)
-- Puoi suggerire libri dalla lista "DA LEGGERE" SOLO nella sezione finale
+- Puoi citare libri dalla lista "DA LEGGERE" SOLO nella sezione finale — e SOLO se compaiono verbatim in quella lista
+- NON inventare, NON parafrasare, NON citare titoli che non siano presenti ESATTAMENTE nella lista DA LEGGERE
 - Se il vincolo è molto specifico e hai pochi titoli certi, meglio 5 ottimi che 10 mediocri
 
 ══ LIBRERIA DI CRISTINA ══
