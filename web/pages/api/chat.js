@@ -33,21 +33,31 @@ export default async function handler(req, res) {
   // ── 2. Carica la libreria da Supabase ───────────────────────────────────────
   const { data: libri } = await supabase
     .from('libri')
-    .select('titolo, autore, genere, anno_pubblicazione, stato_lettura, voto, casa_editrice, lingua_originale')
+    .select('titolo, autore, genere, anno_pubblicazione, stato_lettura, voto, casa_editrice, lingua_originale, anno_lettura')
     .order('voto', { ascending: false, nullsFirst: false })
 
-  const tutti    = libri || []
-  const letti    = tutti.filter(l => l.stato_lettura === 'letto')
+  const tutti     = libri || []
+  const letti     = tutti.filter(l => l.stato_lettura === 'letto')
   const inLettura = tutti.filter(l => l.stato_lettura === 'in_lettura')
   const daLeggere = tutti.filter(l => l.stato_lettura === 'da_leggere')
-  const conVoto  = letti.filter(l => l.voto).sort((a, b) => b.voto - a.voto)
+  const conVoto   = letti.filter(l => l.voto).sort((a, b) => b.voto - a.voto)
   const senzaVoto = letti.filter(l => !l.voto)
+
+  // Raggruppa i letti per anno di lettura
+  const lettiPerAnno = {}
+  for (const l of letti) {
+    const anno = l.anno_lettura ?? 'anno non specificato'
+    if (!lettiPerAnno[anno]) lettiPerAnno[anno] = []
+    lettiPerAnno[anno].push(l)
+  }
+  const anniOrdinati = Object.keys(lettiPerAnno).sort((a, b) => b - a)
 
   function fmtLibro(l) {
     const autore = (l.autore || []).join(', ') || 'autore ignoto'
     const genere = (l.genere || []).join(', ') || null
     const parts  = [autore, genere, l.anno_pubblicazione].filter(Boolean).join(', ')
-    return `"${l.titolo || 'Senza titolo'}" — ${parts}`
+    const annoLettura = l.anno_lettura ? ` [letto nel ${l.anno_lettura}]` : ''
+    return `"${l.titolo || 'Senza titolo'}" — ${parts}${annoLettura}`
   }
 
   // ── 3. Costruisce il system prompt ──────────────────────────────────────────
@@ -56,7 +66,10 @@ Conosci la sua libreria completa e i suoi gusti di lettura. Rispondi sempre in i
 Quando suggerisci libri, dai sempre titolo, autore e una motivazione personalizzata basata sui suoi gusti reali.
 Non suggerire MAI libri già presenti nella sua libreria (elencati sotto).
 
-═══ LIBRERIA DI CRISTINA (${tutti.length} libri) ═══
+═══ LIBRERIA DI CRISTINA (${tutti.length} libri totali) ═══
+
+📅 LIBRI LETTI PER ANNO:
+${anniOrdinati.map(anno => `  ${anno}: ${lettiPerAnno[anno].length} libri`).join('\n') || '  (nessuno)'}
 
 📚 LETTI CON VOTO (dal più amato al meno amato):
 ${conVoto.length > 0
