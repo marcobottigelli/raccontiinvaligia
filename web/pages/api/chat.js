@@ -179,6 +179,53 @@ Poni questa domanda:
 7. Non ho preferenze
 8. Altro: scrivi tu...
 
+D2c_sub — [SOLO per alcuni ambiti scelti in D2c — vedi sotto]
+
+Se ha scelto "Musicale / artistico":
+"Che genere o disciplina ti interessa? Scegli o scrivi tu:"
+1. Rock / pop / indie
+2. Jazz / blues / soul / R&B
+3. Musica classica / lirica / opera
+4. Cinema / teatro / danza
+5. Arte visiva / pittura / scultura
+6. Non ho preferenze
+7. Altro: scrivi tu...
+
+Se ha scelto "Sportivo":
+"Che sport ti interessa? Scegli o scrivi tu:"
+1. Calcio
+2. Ciclismo / atletica / maratona
+3. Tennis / sport individuali
+4. Basket / sport americani
+5. Sport estremi / avventura
+6. Non ho preferenze
+7. Altro: scrivi tu...
+
+Se ha scelto "Imprenditoria / business":
+"Che settore ti interessa? Scegli o scrivi tu:"
+1. Finanza / investimenti (es. Warren Buffett, Ray Dalio)
+2. Tech / startup / innovazione (es. Musk, Jobs)
+3. Moda / lusso / retail
+4. Industria / manifattura
+5. Non ho preferenze
+6. Altro: scrivi tu...
+
+Se ha scelto "Politico / storico", "Letterario / intellettuale", "Scientifico / accademico"
+o "Non ho preferenze": salta D2c_sub e vai direttamente a D3.
+
+D2d — [SOLO se l'utente ha scelto "Saggistica" in D2]
+Poni questa domanda:
+"Che tipo di saggistica stai cercando? Scegli o scrivi tu:"
+1. Filosofia / pensiero
+2. Storia / politica
+3. Scienza / natura / ambiente
+4. Psicologia / mente / comportamento
+5. Economia / società / geopolitica
+6. Arte / cultura / critica letteraria
+7. Viaggi / esplorazioni / geografie umane
+8. Non ho preferenze
+9. Altro: scrivi tu...
+
 D3 — Tema o epoca?
 1. Contemporaneo
 2. Storico (qualsiasi epoca)
@@ -189,8 +236,13 @@ D4 — Preferenze sulla lunghezza?
 1. Breve (sotto 250 pagine)
 2. Non è rilevante per me
 
-Dopo che l'utente ha risposto a TUTTE le domande (D1, D2, eventuale D2b o D2c, D3, D4), proponi i suggerimenti.
-NON dare suggerimenti prima di aver completato il flusso.
+Flusso completo (branch paralleli da D2, non sequenziali):
+D1 → D2 → ┬─ [se Narrativa] ──────────────────────────────────────────── D3 → D4
+           ├─ [se Narrativa di viaggio] → D2b ──────────────────────────── D3 → D4
+           ├─ [se Saggistica] → D2d ────────────────────────────────────── D3 → D4
+           ├─ [se Autobiografia] → D2c → [D2c_sub se musicale/sport/biz] → D3 → D4
+           └─ [se Altro] ──────────────────────────────────────────────── D3 → D4
+Poni UNA domanda alla volta. NON saltare domande. NON dare suggerimenti prima di aver completato il flusso.
 
 ${REGOLA_AUTO_VERIFICA}
 
