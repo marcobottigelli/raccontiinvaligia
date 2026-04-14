@@ -165,6 +165,7 @@ D2b — [SOLO se l'utente ha scelto "Narrativa di viaggio / reportage" in D2]
 Poni questa domanda:
 "Hai una destinazione geografica specifica in mente? Scrivila pure qui sotto — altrimenti scegli:"
 1. Non importa, scegli tu
+2. Altro: scrivi tu...
 
 D2c — [SOLO se l'utente ha scelto "Autobiografia / memoir" in D2]
 Poni questa domanda:
