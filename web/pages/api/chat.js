@@ -4,6 +4,35 @@
 
 export const config = { maxDuration: 60 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// REGOLA DI AUTO-VERIFICA — richiamata nel system prompt per ogni titolo proposto
+// Modifica qui per cambiare i criteri di selezione dei suggerimenti.
+// ─────────────────────────────────────────────────────────────────────────────
+const REGOLA_AUTO_VERIFICA = `
+══ REGOLA DI AUTO-VERIFICA — OBBLIGATORIA PER OGNI TITOLO ══
+
+Un titolo viene proposto SOLO SE soddisfa CONTEMPORANEAMENTE entrambe le condizioni:
+
+CONDIZIONE A — CRITERI SELEZIONATI (tutti devono essere soddisfatti):
+  □ Il libro appartiene al genere indicato (narrativa, viaggio, saggistica, autobiografia…)?
+  □ Se è stata indicata una destinazione geografica: il libro riguarda QUELLA destinazione specifica?
+     (Es: "Messico" → il libro è ambientato in Messico o tratta del Messico — non di altri paesi)
+  □ Se è stato indicato un ambito biografico: il protagonista è di quell'ambito?
+  □ Il libro rispetta le preferenze di lettura (leggera/impegnativa) e di epoca indicate?
+
+CONDIZIONE B — GUSTI PERSONALI (deve essere soddisfatta):
+  □ Il libro risuona con lo stile, i temi o la sensibilità dei libri a 5★ di Cristina?
+     Confronta esplicitamente: autore simile, densità narrativa analoga, temi affini, stesso tipo di emozione.
+
+→ Se ENTRAMBE le condizioni A e B sono soddisfatte: aggiungi il titolo.
+→ Se anche solo UNA condizione non è soddisfatta: scarta il titolo e trovane un altro.
+→ Obiettivo: 8-10 titoli. Se applicando questi criteri riesci a trovarne solo 5 di alta qualità, proponi 5.
+   MAI scendere sotto 5. MAI allentare i criteri per arrivare a 10: qualità > quantità.
+   NON proporre titoli di cui non sei certo al 100% — meglio fermarsi a 5 titoli certi che inventarne.
+
+Applica questa verifica a CIASCUN titolo individualmente, in sequenza, prima di includerlo nell'elenco.
+`
+
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -162,21 +191,7 @@ D4 — Preferenze sulla lunghezza?
 Dopo che l'utente ha risposto a TUTTE le domande (D1, D2, eventuale D2b o D2c, D3, D4), proponi i suggerimenti.
 NON dare suggerimenti prima di aver completato il flusso.
 
-══ AUTO-VERIFICA OBBLIGATORIA PER OGNI TITOLO ══
-
-Prima di aggiungere qualsiasi titolo all'elenco finale, esegui internamente questi 4 controlli:
-
-□ PERTINENZA: Il libro è davvero pertinente alle risposte fornite?
-  - Se è stato indicato un genere specifico, il libro appartiene a quel genere?
-  - Se è stata indicata una destinazione geografica, il libro riguarda SOLO quella destinazione?
-  - Se è stato indicato un ambito per le biografie, il protagonista è di quell'ambito?
-□ GUSTI: Lo stile, la densità narrativa o i temi risuonano con almeno uno dei libri a 5★ di Cristina?
-□ ESCLUSIONE: Il titolo NON è presente nella lista "TUTTI I LIBRI LETTI"?
-□ QUALITÀ: È un libro reale, pubblicato, di qualità riconosciuta — non inventato?
-
-→ Se TUTTI e 4 i controlli passano: aggiungi il titolo.
-→ Se anche solo 1 fallisce: scarta il titolo, cerca un candidato alternativo e ripeti la verifica.
-Applica questo controllo a CIASCUN titolo individualmente, fino ad avere 8-10 titoli validi.
+${REGOLA_AUTO_VERIFICA}
 
 ══ REGOLE PER I SUGGERIMENTI ══
 
@@ -195,7 +210,7 @@ Preferisci autori simili, stessa densità narrativa, temi affini.
 
 STRUTTURA RISPOSTA (seguila sempre):
 
-Proponi 8-10 libri che Cristina NON ha ancora in libreria.
+Proponi 8-10 libri (minimo 5 se i criteri sono molto restrittivi) che Cristina NON ha ancora in libreria.
 Per ognuno usa esattamente questo formato:
 
 • "Titolo" — Autore

@@ -32,12 +32,12 @@ App web per la libreria personale di Cristina (raccontiinvaligia.it).
 
 ## Regola auto-verifica suggerimenti libri (assistente AI)
 
-Quando modifichi il system prompt dell'assistente AI (`web/pages/api/chat.js`), assicurati che sia presente il blocco AUTO-VERIFICA. La regola è: prima di proporre ogni singolo titolo, l'AI deve internamente verificare 4 condizioni:
+La regola è definita come costante `REGOLA_AUTO_VERIFICA` in cima a `web/pages/api/chat.js`.
+**Modifica sempre lì**, non nel corpo del system prompt — il prompt la inserisce con `${REGOLA_AUTO_VERIFICA}`.
 
-1. **Pertinenza** al genere/destinazione/ambito scelto dall'utente
-2. **Coerenza** di stile e temi con i libri a 5★ dell'utente
-3. **Esclusione**: il titolo non è nella lista "già letti"
-4. **Qualità**: il libro è reale, pubblicato, riconosciuto
+La regola impone che ogni titolo soddisfi CONTEMPORANEAMENTE:
+- **Condizione A** — tutti i criteri selezionati dall'utente (genere, destinazione, ambito, epoca, lunghezza)
+- **Condizione B** — coerenza con i gusti personali (stile/temi dei libri a 5★)
 
-Se anche solo 1 controllo fallisce → scartare il titolo e cercarne un altro.
-Il formato di output per i suggerimenti usa bullet `•` (mai numerazione 1. 2. 3.) per evitare che i titoli vengano renderizzati come bottoni quick-reply nell'app nativa.
+Obiettivo: 8-10 titoli. Minimo 5 se i criteri sono restrittivi. Mai allentare i criteri per fare numero.
+Il formato usa bullet `•` (mai numerazione 1. 2. 3.) per evitare che i titoli diventino bottoni nell'app.
