@@ -2,6 +2,8 @@
 // Legge la chiave OpenAI da impostazioni (servizio = 'openai')
 // Costruisce un system prompt con i dati reali della libreria
 
+export const config = { maxDuration: 60 } // Vercel timeout esteso a 60s
+
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -142,10 +144,8 @@ ${inLettura.length > 0
   ? inLettura.map(l => `  • ${fmtLibro(l)}`).join('\n')
   : '  (nessuno)'}
 
-⏳ LISTA DA LEGGERE:
-${daLeggere.length > 0
-  ? daLeggere.map(l => `  • ${fmtLibro(l)}`).join('\n')
-  : '  (lista vuota)'}
+⏳ LISTA DA LEGGERE (${daLeggere.length} titoli — mostro i primi 60):
+${daLeggere.slice(0, 60).map(l => `  • ${fmtLibro(l)}`).join('\n') || '  (lista vuota)'}
 
 ═══════════════════════════════════════════════`
 
@@ -161,7 +161,7 @@ ${daLeggere.length > 0
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages,
+          ...messages.slice(-20), // ultimi 20 messaggi per contenere i token
         ],
         max_tokens: 1200,
         temperature: 0.75,
