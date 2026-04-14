@@ -40,8 +40,20 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
+// Sanitizza una stringa per l'inserimento nel system prompt (anti prompt-injection)
+function sanitize(str) {
+  if (!str) return ''
+  return String(str).replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7E\u00C0-\u024F]/g, c => c).slice(0, 300)
+}
+
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://raccontiinvaligia.vercel.app'
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  const origin = req.headers.origin
+  if (!origin || origin === ALLOWED_ORIGIN) {
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' })
 
@@ -108,22 +120,23 @@ export default async function handler(req, res) {
     .join(', ')
 
   // ── 4. Formattazione ───────────────────────────────────────────────────────
+  // Sanitizza ogni campo prima di inserirlo nel prompt (anti prompt-injection)
   function fmt5(l) {
-    const autore  = (l.autore || []).join(', ') || '?'
-    const editore = l.casa_editrice || null
-    const genere  = (l.genere || []).join(', ') || null
+    const autore  = (l.autore || []).map(sanitize).join(', ') || '?'
+    const editore = sanitize(l.casa_editrice) || null
+    const genere  = (l.genere || []).map(sanitize).join(', ') || null
     const annoL   = l.anno_lettura ? ` [${l.anno_lettura}]` : ''
-    return `"${l.titolo || '?'}" — ${[autore, editore, genere].filter(Boolean).join(', ')}${annoL}`
+    return `"${sanitize(l.titolo) || '?'}" — ${[autore, editore, genere].filter(Boolean).join(', ')}${annoL}`
   }
 
   function fmt4(l) {
-    const autore = (l.autore || []).join(', ') || '?'
-    const genere = (l.genere || []).join(', ') || null
-    return `"${l.titolo || '?'}" — ${[autore, genere].filter(Boolean).join(', ')}`
+    const autore = (l.autore || []).map(sanitize).join(', ') || '?'
+    const genere = (l.genere || []).map(sanitize).join(', ') || null
+    return `"${sanitize(l.titolo) || '?'}" — ${[autore, genere].filter(Boolean).join(', ')}`
   }
 
   function fmtBase(l) {
-    return `"${l.titolo || '?'}" (${(l.autore || []).join(', ') || '?'})`
+    return `"${sanitize(l.titolo) || '?'}" (${(l.autore || []).map(sanitize).join(', ') || '?'})`
   }
 
   // Lista completa letti, raggruppata per anno (più recenti prima) con voto
@@ -327,14 +340,22 @@ ${(daLeggereRaw || []).map(fmtBase).join('\n') || '(lista vuota)'}`
       }),
     })
 
-    const data = await openaiRes.json()
-    if (!openaiRes.ok) {
-      const msg = data.error?.message || 'Errore sconosciuto OpenAI'
-      return res.status(500).json({ error: msg })
+    let data
+    try {
+      data = await openaiRes.json()
+    } catch (_) {
+      return res.status(500).json({ error: 'Risposta non valida da OpenAI' })
     }
+    if (!openaiRes.ok) {
+      console.error('[chat] OpenAI error:', data.error?.message)
+      return res.status(500).json({ error: 'Errore del servizio AI. Riprova tra qualche secondo.' })
+    }
+    const content = data.choices?.[0]?.message?.content
+    if (!content) return res.status(500).json({ error: 'Risposta AI vuota' })
 
-    return res.json({ content: data.choices[0].message.content })
+    return res.json({ content })
   } catch (e) {
-    return res.status(500).json({ error: 'Errore di rete verso OpenAI: ' + e.message })
+    console.error('[chat] fetch error:', e.message)
+    return res.status(500).json({ error: 'Errore di connessione verso OpenAI' })
   }
 }

@@ -10,10 +10,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
-// Recupera la chiave OpenAI da Supabase (stessa tabella usata dal chatbot)
+// Recupera la chiave OpenAI da Supabase — cache con TTL 5 minuti
 let cachedApiKey = null
+let cachedApiKeyTime = 0
+const KEY_CACHE_TTL = 5 * 60 * 1000
+
 async function getOpenAIKey() {
-  if (cachedApiKey) return cachedApiKey
+  if (cachedApiKey && Date.now() - cachedApiKeyTime < KEY_CACHE_TTL) return cachedApiKey
   try {
     const { data } = await supabase
       .from('impostazioni')
@@ -21,6 +24,7 @@ async function getOpenAIKey() {
       .eq('servizio', 'openai')
       .maybeSingle()
     cachedApiKey = data?.api_key || null
+    cachedApiKeyTime = Date.now()
   } catch (_) {}
   return cachedApiKey
 }
@@ -62,8 +66,13 @@ async function aiLookupMeta(titolo, autori, isbn) {
   }
 }
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://raccontiinvaligia.vercel.app'
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  const origin = req.headers.origin
+  if (!origin || origin === ALLOWED_ORIGIN) {
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+  }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' })
@@ -72,6 +81,7 @@ export default async function handler(req, res) {
   if (!isbn) return res.status(400).json({ error: 'isbn mancante' })
 
   const cleanIsbn = isbn.replace(/[-\s]/g, '')
+  if (!/^\d{10,13}$/.test(cleanIsbn)) return res.status(400).json({ error: 'ISBN non valido' })
   const TIMEOUT = 6000
 
   // ── Fetch Google Books + Open Library in parallelo ──────────────────────────
