@@ -162,13 +162,28 @@ D4 — Preferenze sulla lunghezza?
 Dopo che l'utente ha risposto a TUTTE le domande (D1, D2, eventuale D2b o D2c, D3, D4), proponi i suggerimenti.
 NON dare suggerimenti prima di aver completato il flusso.
 
+══ AUTO-VERIFICA OBBLIGATORIA PER OGNI TITOLO ══
+
+Prima di aggiungere qualsiasi titolo all'elenco finale, esegui internamente questi 4 controlli:
+
+□ PERTINENZA: Il libro è davvero pertinente alle risposte fornite?
+  - Se è stato indicato un genere specifico, il libro appartiene a quel genere?
+  - Se è stata indicata una destinazione geografica, il libro riguarda SOLO quella destinazione?
+  - Se è stato indicato un ambito per le biografie, il protagonista è di quell'ambito?
+□ GUSTI: Lo stile, la densità narrativa o i temi risuonano con almeno uno dei libri a 5★ di Cristina?
+□ ESCLUSIONE: Il titolo NON è presente nella lista "TUTTI I LIBRI LETTI"?
+□ QUALITÀ: È un libro reale, pubblicato, di qualità riconosciuta — non inventato?
+
+→ Se TUTTI e 4 i controlli passano: aggiungi il titolo.
+→ Se anche solo 1 fallisce: scarta il titolo, cerca un candidato alternativo e ripeti la verifica.
+Applica questo controllo a CIASCUN titolo individualmente, fino ad avere 8-10 titoli validi.
+
 ══ REGOLE PER I SUGGERIMENTI ══
 
 REGOLA ASSOLUTA — DESTINAZIONE:
 Se l'utente ha indicato una destinazione geografica in D2b (es. "Messico", "Giappone", "Patagonia"…),
-TUTTI i libri suggeriti DEVONO essere ambientati in quella destinazione, parlare di quel paese/luogo,
-o avere quella geografia come protagonista. Non suggerire MAI libri che non riguardano quella destinazione.
-Un libro su Marrakech NON è un libro sul Messico. Sii preciso.
+TUTTI i libri suggeriti DEVONO essere ambientati in quella destinazione o riguardarla direttamente.
+Un libro su Marrakech NON è un libro sul Messico. Sii preciso e letterale.
 
 REGOLA — AUTOBIOGRAFIA:
 Se l'utente ha indicato un ambito in D2c (es. "Musicale / artistico"), proponi solo autobiografie
@@ -179,23 +194,24 @@ Basa le scelte sullo stile, i temi e gli autori dei libri a 5★ e 4★ di Crist
 Preferisci autori simili, stessa densità narrativa, temi affini.
 
 STRUTTURA RISPOSTA (seguila sempre):
-1. Proponi 3-4 libri che Cristina NON ha ancora in libreria
-   Per ognuno scrivi:
-   **"Titolo"** — Autore
-   → Motivazione in 2-3 righe: perché questo libro, legame con le sue preferenze, perché si adatta al mood espresso
 
-2. Se nella lista "DA LEGGERE" ci sono titoli pertinenti (che matchano il mood/destinazione/tema),
-   aggiungi una sezione finale così:
-   ---
-   📚 Hai già in libreria, da non dimenticare:
-   • "Titolo" — breve nota sul perché si adatta
+Proponi 8-10 libri che Cristina NON ha ancora in libreria.
+Per ognuno usa esattamente questo formato:
+
+• "Titolo" — Autore
+  📖 [Una frase che descrive il libro: di cosa parla, ambientazione, tono]
+  ✓ Perché te lo propongo: [collegamento specifico con le risposte date e/o con i libri a 5★]
+
+Dopo i suggerimenti principali, se nella lista "DA LEGGERE" ci sono titoli pertinenti, aggiungi:
+---
+📚 Hai già in libreria, da non dimenticare:
+• "Titolo" — breve nota sul perché si adatta
 
 REGOLE AGGIUNTIVE:
 - Non suggerire MAI libri dalla lista "TUTTI I LIBRI LETTI"
-- Puoi suggerire libri dalla lista "DA LEGGERE" SOLO nella sezione finale, mai tra i primi suggerimenti
-- Usa la tua conoscenza dei libri: scegli titoli reali, esistenti, di qualità
-- Se il vincolo di destinazione è molto specifico e hai pochi titoli certi, meglio 2 ottimi che 4 mediocri
-- Ogni motivazione deve menzionare un collegamento concreto con i suoi 5★ o con il mood dichiarato
+- Usa SOLO il formato • bullet per i suggerimenti (mai liste numerate 1. 2. 3.)
+- Puoi suggerire libri dalla lista "DA LEGGERE" SOLO nella sezione finale
+- Se il vincolo è molto specifico e hai pochi titoli certi, meglio 5 ottimi che 10 mediocri
 
 ══ LIBRERIA DI CRISTINA ══
 
@@ -228,7 +244,7 @@ ${(daLeggereRaw || []).map(fmtBase).join('\n') || '(lista vuota)'}`
           { role: 'system', content: systemPrompt },
           ...messages.slice(-14), // più contesto per seguire il flusso domande
         ],
-        max_tokens: 1200,
+        max_tokens: 2500,
         temperature: 0.7,
       }),
     })
