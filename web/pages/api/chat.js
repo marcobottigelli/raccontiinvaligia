@@ -55,7 +55,8 @@ export default async function handler(req, res) {
   function fmtLibro(l) {
     const autore = (l.autore || []).join(', ') || 'autore ignoto'
     const genere = (l.genere || []).join(', ') || null
-    const parts  = [autore, genere, l.anno_pubblicazione].filter(Boolean).join(', ')
+    const editore = l.casa_editrice || null
+    const parts  = [autore, editore, genere, l.anno_pubblicazione, l.lingua_originale !== 'italiano' ? l.lingua_originale : null].filter(Boolean).join(', ')
     const annoLettura = l.anno_lettura ? ` [letto nel ${l.anno_lettura}]` : ''
     return `"${l.titolo || 'Senza titolo'}" — ${parts}${annoLettura}`
   }
