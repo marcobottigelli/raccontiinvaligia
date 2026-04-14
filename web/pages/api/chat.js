@@ -1,6 +1,6 @@
 // api/chat.js — Chatbot AI con contesto libreria
 // Legge la chiave OpenAI da impostazioni (servizio = 'openai')
-// Costruisce un system prompt minimale con solo i dati rilevanti
+// Costruisce un system prompt con tutti i dati della libreria rilevanti
 
 export const config = { maxDuration: 60 }
 
@@ -32,31 +32,47 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 2. Query Supabase mirate in parallelo ───────────────────────────────────
-  const [{ data: cinqueStelle }, { data: daLeggereRaw }, { data: statsRaw }] = await Promise.all([
-    // Solo libri a 5★ — base per capire i gusti
+  // ── 2. Query Supabase in parallelo ──────────────────────────────────────────
+  const [
+    { data: cinqueStelle },
+    { data: quattroStelle },
+    { data: tuttiLetti },
+    { data: daLeggereRaw },
+    { data: statsRaw },
+  ] = await Promise.all([
+    // 5★ — gusti primari con dettagli
     supabase.from('libri')
       .select('titolo, autore, casa_editrice, genere, anno_lettura')
       .eq('stato_lettura', 'letto')
       .eq('voto', 5),
 
-    // Da leggere — solo titolo e autore, max 25
+    // 4★ — gusti secondari (solo titolo/autore/genere)
+    supabase.from('libri')
+      .select('titolo, autore, genere')
+      .eq('stato_lettura', 'letto')
+      .eq('voto', 4),
+
+    // Tutti i libri letti — serve per escluderli dai suggerimenti
     supabase.from('libri')
       .select('titolo, autore')
-      .eq('stato_lettura', 'da_leggere')
-      .limit(25),
+      .eq('stato_lettura', 'letto'),
 
-    // Stats per riepilogo
+    // Da leggere — tutti, nessun limite
+    supabase.from('libri')
+      .select('titolo, autore')
+      .eq('stato_lettura', 'da_leggere'),
+
+    // Stats per riepilogo numerico
     supabase.from('libri')
       .select('stato_lettura, anno_lettura'),
   ])
 
-  // ── 3. Calcola statistiche ──────────────────────────────────────────────────
+  // ── 3. Calcola statistiche ─────────────────────────────────────────────────
   const stats = statsRaw || []
-  const totale    = stats.length
-  const nLetti    = stats.filter(l => l.stato_lettura === 'letto').length
-  const nLettura  = stats.filter(l => l.stato_lettura === 'in_lettura').length
-  const nDaLegg   = stats.filter(l => l.stato_lettura === 'da_leggere').length
+  const totale   = stats.length
+  const nLetti   = stats.filter(l => l.stato_lettura === 'letto').length
+  const nLettura = stats.filter(l => l.stato_lettura === 'in_lettura').length
+  const nDaLegg  = stats.filter(l => l.stato_lettura === 'da_leggere').length
 
   const lettiPerAnno = {}
   for (const l of stats) {
@@ -70,7 +86,7 @@ export default async function handler(req, res) {
     .map(a => `${a}:${lettiPerAnno[a]}`)
     .join(', ')
 
-  // ── 4. Formattazione libri ──────────────────────────────────────────────────
+  // ── 4. Formattazione ───────────────────────────────────────────────────────
   function fmt5(l) {
     const autore  = (l.autore || []).join(', ') || '?'
     const editore = l.casa_editrice || null
@@ -79,17 +95,26 @@ export default async function handler(req, res) {
     return `"${l.titolo || '?'}" — ${[autore, editore, genere].filter(Boolean).join(', ')}${annoL}`
   }
 
-  function fmtDL(l) {
+  function fmt4(l) {
+    const autore = (l.autore || []).join(', ') || '?'
+    const genere = (l.genere || []).join(', ') || null
+    return `"${l.titolo || '?'}" — ${[autore, genere].filter(Boolean).join(', ')}`
+  }
+
+  function fmtBase(l) {
     return `"${l.titolo || '?'}" (${(l.autore || []).join(', ') || '?'})`
   }
 
-  // ── 5. System prompt compatto ───────────────────────────────────────────────
-  const systemPrompt = `Sei l'assistente letterario personale di Cristina (raccontiinvaligia.it).
-Rispondi in italiano, tono caldo e appassionato.
+  // Titoli letti (per esclusione)
+  const titoliletti = (tuttiLetti || []).map(l => `"${l.titolo || '?'}"`)
 
-══ FLUSSO SUGGERIMENTI ══
-Quando l'utente chiede consigli su cosa leggere, fai UNA sola domanda alla volta.
-Per ogni domanda presenta opzioni numerate — l'ultima è sempre "Altro: scrivi tu..."
+  // ── 5. System prompt ───────────────────────────────────────────────────────
+  const systemPrompt = `Sei l'assistente letterario personale di Cristina (raccontiinvaligia.it).
+Rispondi sempre in italiano, tono caldo e appassionato.
+
+══ FLUSSO SUGGERIMENTI — segui questo ordine RIGOROSO ══
+
+Quando l'utente chiede consigli su cosa leggere, poni UNA domanda alla volta seguendo questo flusso:
 
 D1 — Come ti senti in questo momento?
 1. Rilassata, voglio qualcosa di piacevole
@@ -97,21 +122,23 @@ D1 — Come ti senti in questo momento?
 3. Riflessiva o nostalgica
 4. Altro: scrivi tu...
 
-D2 — Lettura leggera o impegnativa?
+D2 — Preferisci una lettura leggera o impegnativa?
 1. Leggera e scorrevole
 2. Impegnativa e profonda
 3. Via di mezzo
 4. Altro: scrivi tu...
 
-D3 — Che tipo di libro?
+D3 — Che tipo di libro stai cercando?
 1. Narrativa
 2. Narrativa di viaggio / reportage
 3. Saggistica
 4. Autobiografia / memoir
 5. Altro: scrivi tu...
 
-D3b — [Solo se ha scelto "Narrativa di viaggio / reportage"]
-Hai una destinazione geografica in mente? Scrivila — oppure rispondi: "Non importa, scegli tu"
+D3b — [SOLO se l'utente ha scelto "Narrativa di viaggio / reportage" in D3]
+Poni questa domanda esatta:
+"Hai una destinazione geografica specifica in mente? Scrivila pure qui sotto — altrimenti scegli:"
+1. Non importa, scegli tu
 
 D4 — Tema o epoca?
 1. Contemporaneo
@@ -119,25 +146,60 @@ D4 — Tema o epoca?
 3. Nessuna preferenza
 4. Altro: scrivi tu...
 
-D5 — [Opzionale, sempre ultima] Preferenze sulla lunghezza?
-1. Preferisco qualcosa di breve (sotto 250 pagine)
-2. Salta, non è rilevante per me
+D5 — Preferenze sulla lunghezza? (opzionale)
+1. Breve (sotto 250 pagine)
+2. Non è rilevante per me
 
-Dopo le risposte suggerisci 3-4 titoli:
-- Basa i gusti SUI LIBRI A 5★ elencati sotto (stile, temi, autori, editori)
-- Puoi includere titoli dalla lista "Da leggere" (scrivi "è già nella tua lista!")
-- Non suggerire mai libri già letti o in lettura
-- Per ogni titolo: nome, autore, motivazione legata al mood e ai 5★
-══════════════════════════
+Dopo che l'utente ha risposto a TUTTE le domande (D1, D2, D3, eventuale D3b, D4, D5), proponi i suggerimenti.
+NON dare suggerimenti prima di aver completato il flusso.
 
-LIBRERIA — ${totale} libri | letti: ${nLetti} | in lettura: ${nLettura} | da leggere: ${nDaLegg}
+══ REGOLE PER I SUGGERIMENTI ══
+
+REGOLA ASSOLUTA — DESTINAZIONE:
+Se l'utente ha indicato una destinazione geografica in D3b (es. "Messico", "Giappone", "Patagonia"…),
+TUTTI i libri suggeriti DEVONO essere ambientati in quella destinazione, parlare di quel paese/luogo,
+o avere quella geografia come protagonista. Non suggerire MAI libri che non riguardano quella destinazione.
+Un libro su Marrakech NON è un libro sul Messico. Sii preciso.
+
+PROFILO GUSTI:
+Basa le scelte sullo stile, i temi e gli autori dei libri a 5★ e 4★ di Cristina.
+Preferisci autori simili, stessa densità narrativa, temi affini.
+
+STRUTTURA RISPOSTA (seguila sempre):
+1. Proponi 3-4 libri che Cristina NON ha ancora in libreria
+   Per ognuno scrivi:
+   **"Titolo"** — Autore
+   → Motivazione in 2-3 righe: perché questo libro, legame con le sue preferenze, perché si adatta al mood espresso
+
+2. Se nella lista "DA LEGGERE" ci sono titoli pertinenti (che matchano il mood/destinazione/tema),
+   aggiungi una sezione finale così:
+   ---
+   📚 Hai già in libreria, da non dimenticare:
+   • "Titolo" — breve nota sul perché si adatta
+
+REGOLE AGGIUNTIVE:
+- Non suggerire MAI libri dalla lista "GIÀ LETTI"
+- Puoi suggerire libri dalla lista "DA LEGGERE" SOLO nella sezione finale, mai tra i primi suggerimenti
+- Usa la tua conoscenza dei libri: scegli titoli reali, esistenti, di qualità
+- Se il vincolo di destinazione è molto specifico e hai pochi titoli certi, meglio 2 ottimi che 4 mediocri
+- Ogni motivazione deve menzionare un collegamento concreto con i suoi 5★ o con il mood dichiarato
+
+══ LIBRERIA DI CRISTINA ══
+
+Totale: ${totale} libri | Letti: ${nLetti} | In lettura: ${nLettura} | Da leggere: ${nDaLegg}
 Letti per anno: ${anniStr || 'n.d.'}
 
-5★ LIBRI DI CRISTINA — base per i suggerimenti:
+★★★★★ LIBRI A 5 STELLE (gusti primari — base per i suggerimenti):
 ${(cinqueStelle || []).map(fmt5).join('\n') || '(nessuno)'}
 
-DA LEGGERE — ${nDaLegg} titoli (primi 25):
-${(daLeggereRaw || []).map(fmtDL).join('\n') || '(lista vuota)'}`
+★★★★ LIBRI A 4 STELLE (gusti secondari):
+${(quattroStelle || []).map(fmt4).join('\n') || '(nessuno)'}
+
+GIÀ LETTI — NON suggerire questi titoli:
+${titoliletti.join(', ') || '(nessuno)'}
+
+DA LEGGERE — ${nDaLegg} titoli (menzionali solo nella sezione finale se pertinenti):
+${(daLeggereRaw || []).map(fmtBase).join('\n') || '(lista vuota)'}`
 
   // ── 6. Chiama OpenAI ────────────────────────────────────────────────────────
   try {
@@ -151,9 +213,9 @@ ${(daLeggereRaw || []).map(fmtDL).join('\n') || '(lista vuota)'}`
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages.slice(-10),
+          ...messages.slice(-14), // più contesto per seguire il flusso domande
         ],
-        max_tokens: 600,
+        max_tokens: 1200,
         temperature: 0.7,
       }),
     })

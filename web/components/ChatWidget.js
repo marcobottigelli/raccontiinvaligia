@@ -1,15 +1,41 @@
 import { useState, useEffect, useRef } from 'react'
 
-// Prompt preconfezionato per suggerimenti libri
+// Prompt di avvio flusso suggerimenti
 const PROMPT_SUGGERIMENTI =
-  'Vorrei che mi suggerissi nuovi libri da leggere basandoti sui miei gusti reali. ' +
-  'Prima di propormi titoli, fammi 2 o 3 domande mirate per capire cosa cerco in questo momento ' +
-  '(ad esempio: preferenza di genere, lunghezza, ambientazione, umore di lettura…). ' +
-  'Poi proponi una selezione personalizzata con una breve motivazione per ogni titolo.'
+  'Vorrei che mi suggerissi nuovi libri da leggere basandoti sui miei gusti reali.'
+
+// ─── Parsing quick-reply options da un messaggio AI ──────────────────────────
+// Restituisce { text, options } dove options sono le righe "N. Testo"
+function parseMessage(content) {
+  const lines = content.split('\n')
+  const optionRegex = /^\s*(\d+)\.\s+(.+)$/
+  const optionLines = []
+  const textLines = []
+
+  for (const line of lines) {
+    const m = line.match(optionRegex)
+    if (m) {
+      optionLines.push(m[2].trim())
+    } else {
+      textLines.push(line)
+    }
+  }
+
+  // Consideriamo opzioni solo se ci sono 1-6 righe di opzioni brevi (scelte, non liste)
+  const areOptions = optionLines.length >= 1 && optionLines.length <= 6 &&
+    optionLines.every(o => o.length < 80)
+
+  if (areOptions) {
+    return { text: textLines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), options: optionLines }
+  }
+  return { text: content, options: [] }
+}
 
 // ─── Bubble messaggio ─────────────────────────────────────────────────────────
-function Bubble({ msg }) {
+function Bubble({ msg, isLast, onQuickReply }) {
   const isUser = msg.role === 'user'
+  const { text, options } = (!isUser && isLast) ? parseMessage(msg.content) : { text: msg.content, options: [] }
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
       {!isUser && (
@@ -17,13 +43,30 @@ function Bubble({ msg }) {
           ✨
         </div>
       )}
-      <div
-        className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
-          ${isUser
-            ? 'bg-brand-500 text-white rounded-tr-sm'
-            : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}
-      >
-        {msg.content}
+      <div className={`flex flex-col gap-2 ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+        <div
+          className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
+            ${isUser
+              ? 'bg-brand-500 text-white rounded-tr-sm'
+              : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}
+        >
+          {text}
+        </div>
+
+        {/* Quick-reply buttons — solo sull'ultimo messaggio AI */}
+        {options.length > 0 && (
+          <div className="flex flex-col gap-1.5 w-full">
+            {options.map((opt, i) => (
+              <button
+                key={i}
+                onClick={() => onQuickReply(opt)}
+                className="text-left px-4 py-2 rounded-full border border-brand-300 text-brand-600 text-sm hover:bg-brand-50 active:bg-brand-100 transition-colors"
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -31,11 +74,11 @@ function Bubble({ msg }) {
 
 // ─── ChatWidget ───────────────────────────────────────────────────────────────
 export default function ChatWidget() {
-  const [open, setOpen]       = useState(false)
+  const [open, setOpen]         = useState(false)
   const [messages, setMessages] = useState([])
-  const [input, setInput]     = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [input, setInput]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
 
@@ -79,7 +122,7 @@ export default function ChatWidget() {
         setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
       } else {
         setError(data.error || 'Errore sconosciuto')
-        setMessages(prev => prev.slice(0, -1)) // rimuove il messaggio utente se fallisce
+        setMessages(prev => prev.slice(0, -1))
       }
     } catch (e) {
       setError('Errore di rete. Controlla la connessione.')
@@ -129,7 +172,7 @@ export default function ChatWidget() {
             onClick={() => setOpen(false)}
           />
 
-          {/* Pannello: full-screen mobile (sopra bottom nav), floating desktop */}
+          {/* Pannello: full-screen mobile, floating desktop */}
           <div className="
             fixed z-50
             top-0 inset-x-0 bottom-16
@@ -175,7 +218,6 @@ export default function ChatWidget() {
                   <p className="text-sm text-gray-500 mb-6 leading-relaxed">
                     Conosco la tua libreria. Chiedimi quello che vuoi, oppure usa il pulsante qui sotto per ricevere suggerimenti personalizzati.
                   </p>
-                  {/* Quick action */}
                   <button
                     onClick={() => send(PROMPT_SUGGERIMENTI)}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors text-left"
@@ -192,7 +234,14 @@ export default function ChatWidget() {
                 </div>
               ) : (
                 <>
-                  {messages.map((msg, i) => <Bubble key={i} msg={msg} />)}
+                  {messages.map((msg, i) => (
+                    <Bubble
+                      key={i}
+                      msg={msg}
+                      isLast={i === messages.length - 1}
+                      onQuickReply={send}
+                    />
+                  ))}
                   {loading && (
                     <div className="flex justify-start mb-3">
                       <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 text-sm">✨</div>
@@ -213,11 +262,11 @@ export default function ChatWidget() {
               )}
             </div>
 
-            {/* Quick action persistente (quando la chat è già aperta) */}
+            {/* Quick action persistente */}
             {!isEmpty && (
               <div className="px-4 pb-2 flex-shrink-0">
                 <button
-                  onClick={() => send(PROMPT_SUGGERIMENTI)}
+                  onClick={() => { reset(); setTimeout(() => send(PROMPT_SUGGERIMENTI), 0) }}
                   disabled={loading}
                   className="w-full flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 disabled:opacity-50 transition-colors text-left"
                 >
