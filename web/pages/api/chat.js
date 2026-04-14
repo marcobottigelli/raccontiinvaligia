@@ -232,9 +232,11 @@ D3 — Tema o epoca?
 3. Nessuna preferenza
 4. Altro: scrivi tu...
 
-D4 — Preferenze sulla lunghezza?
-1. Breve (sotto 250 pagine)
-2. Non è rilevante per me
+D4 — Poni questa domanda aperta, senza opzioni numerate:
+"C'è qualcos'altro che vuoi dirmi per aiutarmi a trovare il libro giusto? Ad esempio: un autore che ami o che non sopporti, un'ambientazione specifica, un libro che hai già letto e ti è piaciuto molto, o qualsiasi altra cosa. Oppure scrivi 'no' per procedere."
+
+Se l'utente risponde "no" (o varianti come "niente", "vai", "procedi"): passa direttamente ai suggerimenti.
+Se l'utente fornisce dettagli: usali per affinare la selezione, poi passa ai suggerimenti.
 
 Flusso completo (branch paralleli da D2, non sequenziali):
 D1 → D2 → ┬─ [se Narrativa] ──────────────────────────────────────────── D3 → D4
