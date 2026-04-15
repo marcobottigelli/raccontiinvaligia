@@ -60,6 +60,16 @@ export default async function handler(req, res) {
   const { messages } = req.body
   if (!messages?.length) return res.status(400).json({ error: 'messages mancanti' })
 
+  // Nome utente — sanitizzato (mai più di 50 char, nessun tag HTML)
+  const rawName = req.body.userName
+  const userName = (typeof rawName === 'string' && rawName.length <= 50)
+    ? rawName.replace(/[<>"'`]/g, '').trim() || 'Cristina'
+    : 'Cristina'
+
+  // Libri forniti dal client (RIV-Books multi-utente) — override su fetch Supabase
+  const clientBooks = Array.isArray(req.body.books) && req.body.books.length > 0
+    ? req.body.books : null
+
   // ── 1. Legge chiave OpenAI ──────────────────────────────────────────────────
   const { data: imp } = await supabase
     .from('impostazioni')
@@ -73,27 +83,31 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 2. Query Supabase in parallelo ──────────────────────────────────────────
-  const [
-    { data: tuttiLettiRaw },
-    { data: daLeggereRaw },
-    { data: statsRaw },
-  ] = await Promise.all([
-    // Tutti i libri letti — con anno, voto, genere per profilo gusti e risposte accurate
-    supabase.from('libri')
-      .select('titolo, autore, casa_editrice, genere, anno_lettura, voto')
-      .eq('stato_lettura', 'letto')
-      .order('anno_lettura', { ascending: false }),
+  // ── 2. Query Supabase (solo se il client non ha già fornito i libri) ─────────
+  let tuttiLettiRaw, daLeggereRaw, statsRaw
 
-    // Da leggere — tutti, nessun limite
-    supabase.from('libri')
-      .select('titolo, autore')
-      .eq('stato_lettura', 'da_leggere'),
-
-    // Stats per riepilogo numerico
-    supabase.from('libri')
-      .select('stato_lettura, anno_lettura'),
-  ])
+  if (clientBooks) {
+    // Usa i dati forniti dal client (utente multi-user di RIV-Books)
+    tuttiLettiRaw = clientBooks.filter(b => b.stato_lettura === 'letto')
+    daLeggereRaw  = clientBooks.filter(b => b.stato_lettura === 'da_leggere')
+    statsRaw      = clientBooks
+  } else {
+    // Fetch da Supabase (RaccontiInValigia — Cristina, single-user)
+    const [gb, db, sb] = await Promise.all([
+      supabase.from('libri')
+        .select('titolo, autore, casa_editrice, genere, anno_lettura, voto')
+        .eq('stato_lettura', 'letto')
+        .order('anno_lettura', { ascending: false }),
+      supabase.from('libri')
+        .select('titolo, autore')
+        .eq('stato_lettura', 'da_leggere'),
+      supabase.from('libri')
+        .select('stato_lettura, anno_lettura'),
+    ])
+    tuttiLettiRaw = gb.data
+    daLeggereRaw  = db.data
+    statsRaw      = sb.data
+  }
 
   // Derivati da tuttiLettiRaw
   const tuttiLetti  = tuttiLettiRaw || []
@@ -154,7 +168,7 @@ export default async function handler(req, res) {
     .join('\n')
 
   // ── 5. System prompt ───────────────────────────────────────────────────────
-  const systemPrompt = `Sei l'assistente letterario personale di Cristina (raccontiinvaligia.it).
+  const systemPrompt = `Sei l'assistente letterario personale di ${userName}.
 Rispondi sempre in italiano, tono caldo e appassionato.
 
 ══ FLUSSO SUGGERIMENTI — segui questo ordine RIGOROSO ══
@@ -276,7 +290,7 @@ Se l'utente ha indicato un ambito in D2c (es. "Musicale / artistico"), proponi s
 di persone di quell'ambito. Non mescolare ambiti diversi.
 
 PROFILO GUSTI:
-Basa le scelte sullo stile, i temi e gli autori dei libri a 5★ e 4★ di Cristina.
+Basa le scelte sullo stile, i temi e gli autori dei libri a 5★ e 4★ di ${userName}.
 Preferisci autori simili, stessa densità narrativa, temi affini.
 
 STRUTTURA RISPOSTA (seguila sempre):
@@ -304,12 +318,12 @@ REGOLE AGGIUNTIVE:
 - NON inventare, NON parafrasare, NON citare titoli che non siano presenti ESATTAMENTE nella lista DA LEGGERE
 - Se il vincolo è molto specifico e hai pochi titoli certi, meglio 5 ottimi che 10 mediocri
 
-══ LIBRERIA DI CRISTINA ══
+══ LIBRERIA DI ${userName.toUpperCase()} ══
 
 Totale: ${totale} libri | Letti: ${nLetti} | In lettura: ${nLettura} | Da leggere: ${nDaLegg}
 Letti per anno: ${anniStr || 'n.d.'}
 
-★★★★★ LIBRI A 5 STELLE (gusti primari — base per i suggerimenti):
+★★★★★ LIBRI A 5 STELLE (gusti primari di ${userName} — base per i suggerimenti):
 ${(cinqueStelle || []).map(fmt5).join('\n') || '(nessuno)'}
 
 ★★★★ LIBRI A 4 STELLE (gusti secondari):
